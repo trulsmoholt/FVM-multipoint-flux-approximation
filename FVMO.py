@@ -6,7 +6,7 @@ from differentiation import gradient, divergence
 import math
 
 def run(h):
-    num_nodes = math.ceil(1/h)
+    num_nodes = math.ceil(1/h+1)
 
     bottom_left = (0,0)
     top_right = (1,1)
@@ -15,7 +15,7 @@ def run(h):
     y = sym.Symbol('y')
 
     K=np.array([[1,0],[0,1]])
-    u_fabric = (x*y*(1-x)*(1-y))**2
+    u_fabric = (-x*y*(1-x)*(1-y))
     f = -divergence(gradient(u_fabric,[x,y]),[x,y],permability_tensor=K)
 
 
@@ -25,7 +25,6 @@ def run(h):
     u_h = np.zeros(num_nodes)
     nodes_x, nodes_y = np.meshgrid(np.linspace(bottom_left[0],top_right[0],num=num_nodes_x),np.linspace(bottom_left[1],top_right[1],num=num_nodes_y))
     nodes = np.stack([nodes_x,nodes_y],axis=2)
-
     u_fabric_vec = np.zeros(num_nodes)
     u_fabric_nodes = np.zeros((num_nodes_y,num_nodes_x))
     f_vec = np.zeros(num_nodes)
@@ -125,9 +124,10 @@ def run(h):
         V = north_face*east_face
         x_d = nodes[j,i,0]
         y_d = nodes[j,i,1]
-        return V*f(x_d,y_d)
 
-
+        #return V*(1/36)*(16*f(x_d,y_d)+4*f(x_d,y_d+north_face/2)+4*f(x_d,y_d-north_face/2)+4*f(x_d+east_face/2,y_d)+4*f(x_d-east_face/2,y_d)+f(x_d + east_face/2,y_d+north_face/2)+f(x_d + east_face/2,y_d-north_face/2)+f(x_d-east_face/2,y_d-east_face/2)+f(x_d - east_face/2,y_d + north_face/2))
+        return V*(f(x_d,y_d))
+        
 
 
     #Matrix assembly
@@ -170,24 +170,40 @@ def run(h):
 
 
     L2_error = 0
+    V = (nodes[0,1,0]-nodes[0,0,0])**2
     for i in range(num_nodes_x):
         for j in range(num_nodes_y):
-            if (i==0) or (i==num_nodes_x-1) or (j==0) or (j==num_nodes_y-1):
+            if (j==num_nodes_y-1) or (i==num_nodes_x-1):
                 continue
-            difference = lambda x,y:u_lam(x,y) - u_nodes[j,i]
-            L2_error = L2_error + integrate(difference,j,i)**2
+            u_1 = u_vec[meshToVec(i,j)]
+            u_2 = u_vec[meshToVec(i+1,j)]
+            u_3 = u_vec[meshToVec(i+1,j+1)]
+            u_4 = u_vec[meshToVec(i,j+1)]
+            u = (u_1 + u_2 + u_3 + u_4)/4
+
+            difference = (u_lam(nodes[j,i,0]+h/2,nodes[j,i,1]+h/2) - u)**2
+            # print(difference)
+            # print(nodes[j,i,0]+h/2)
+            # print(nodes[j,i,1]+h/2)
+            
+            
+            #print(u_lam(nodes[j,i,0]+(1/(2*num_nodes)),nodes[j,i,1]+(1/(2*num_nodes))))
+            L2_error = L2_error + V*difference
+
+
+
     print('L2 error ',math.sqrt(L2_error))
+    fig = plt.figure(figsize=plt.figaspect(0.5))
+    ax = fig.add_subplot(1,2,1,projection='3d')
+    ax.plot_surface(nodes[:,:,0],nodes[:,:,1],u_nodes,cmap='viridis', edgecolor='none')
+    ax.set_title('computed solution')
+    ax.set_zlim(0.00, -0.07)
+
+
+    ax = fig.add_subplot(1, 2, 2, projection='3d')
+    ax.plot_surface(nodes[:,:,0],nodes[:,:,1],u_fabric_nodes,cmap='viridis', edgecolor='none')
+    ax.set_title('exact solution')
+    ax.set_zlim(0.00, -0.07)
+
+    plt.show()
     return math.sqrt(L2_error)
-# fig = plt.figure(figsize=plt.figaspect(0.5))
-# ax = fig.add_subplot(1,2,1,projection='3d')
-# ax.plot_surface(nodes[:,:,0],nodes[:,:,1],u_nodes,cmap='viridis', edgecolor='none')
-# ax.set_title('computed solution')
-# ax.set_zlim(0.00, 0.07)
-
-
-# ax = fig.add_subplot(1, 2, 2, projection='3d')
-# ax.plot_surface(nodes[:,:,0],nodes[:,:,1],f_nodes,cmap='viridis', edgecolor='none')
-# ax.set_title('exact solution')
-# ax.set_zlim(0.00, 0.07)
-
-# plt.show()
