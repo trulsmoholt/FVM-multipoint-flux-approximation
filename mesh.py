@@ -23,6 +23,7 @@ class Mesh:
         return nodes
 
     def __compute_cell_centers(self,nodes):
+        #NB unstable for almost right angles
         num_nodes_y = nodes.shape[0]
         num_nodes_x = nodes.shape[1]
         cell_centers = np.zeros((num_nodes_y-1,num_nodes_x - 1,2))
