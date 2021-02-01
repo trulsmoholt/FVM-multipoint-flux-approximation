@@ -7,8 +7,8 @@ class Mesh:
         self.num_nodes_x = num_nodes_x
         self.num_nodes_y = num_nodes_y
 
-        bottom_left = (0-1/(num_nodes_x-1),0-1/(num_nodes_y-1))
-        top_right = (1+1/(num_nodes_x-1),1+1/(num_nodes_x-1))
+        bottom_left = (0,0)
+        top_right = (1,1)
         nodes_x, nodes_y = np.meshgrid(np.linspace(bottom_left[0],top_right[0],num=num_nodes_x),np.linspace(bottom_left[1],top_right[1],num=num_nodes_y))
         nodes = np.stack([nodes_x,nodes_y],axis=2)
 
