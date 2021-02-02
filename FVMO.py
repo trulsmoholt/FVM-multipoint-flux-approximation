@@ -147,7 +147,7 @@ def compute_vector(mesh,f,boundary):
             base = nodes[i,j+1,0]-nodes[i,j,0]
             top = nodes[i+1,j+1,0]-nodes[i+1,j,0]
             if (i==0) or (i==ny-2) or (j==0) or (j==nx-2):
-                vector[meshToVec(i,j)]= h_y*0.5*(base+top)*boundary(cell_centers[i,j,0],cell_centers[i,j,1])
+                vector[meshToVec(i,j)]= boundary(cell_centers[i,j,0],cell_centers[i,j,1])
                 continue
             vector[meshToVec(i,j)] += h_y*0.5*(base+top)*f(cell_centers[i,j,0],cell_centers[i,j,1])
     return vector
