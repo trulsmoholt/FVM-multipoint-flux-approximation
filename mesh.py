@@ -21,7 +21,7 @@ class Mesh:
 
     def __perturb(self,nodes, P):
         for y,row in enumerate(nodes):
-            transform = lambda x: P(x,y)
+            transform = lambda x: P(x,y/self.num_nodes_y)
             T = np.vectorize(transform)
             nodes[y,:,0] = T(row[:,0])
         return nodes
@@ -54,10 +54,10 @@ class Mesh:
         plt.show()
 
     def meshToVec(self,j,i)->int:
-        return i*self.cell_centers.shape[1] + j
+        return i*self.cell_centers.shape[0] + j
 
     def vecToMesh(self,h)->(int,int):
-        return (h % self.cell_centers.shape[1], math.floor(h/self.cell_centers.shape[1]))
+        return (h % self.cell_centers.shape[0], math.floor(h/self.cell_centers.shape[0]))
 
     def plot_function(self,vec):
         vec_center = np.zeros((self.cell_centers.shape[0],self.cell_centers.shape[1]))
