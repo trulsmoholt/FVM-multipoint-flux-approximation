@@ -11,13 +11,13 @@ class Mesh:
         self.num_nodes_y = num_nodes_y
 
         bottom_left = (0,0)
-        top_right = (1,1)
+        top_right = (0.5,0.5)
         nodes_x, nodes_y = np.meshgrid(np.linspace(bottom_left[0],top_right[0],num=num_nodes_x),np.linspace(bottom_left[1],top_right[1],num=num_nodes_y))
         nodes = np.stack([nodes_x,nodes_y],axis=2)
 
         self.nodes = self.__perturb(nodes,P)
-
         self.cell_centers = self.__compute_cell_centers(self.nodes)
+        self.volumes = self.__compute_volumes(self.nodes)
 
     def __perturb(self,nodes, P):
         for y,row in enumerate(nodes):
@@ -42,7 +42,17 @@ class Mesh:
                 y = nodes[i,j,1] + h*(b+2*a)/(3*(a+b))
                 cell_centers[i,j] = np.array([x,y])
         return cell_centers
-
+    def __compute_volumes(self,nodes):
+        num_nodes_y = nodes.shape[0]
+        num_nodes_x = nodes.shape[1]
+        h = float(nodes[1,0,1]-nodes[0,0,1])
+        V = np.zeros((num_nodes_y-1,num_nodes_x - 1))
+        for i in range(num_nodes_y-1):
+            for j in range(num_nodes_x-1):
+                base = nodes[i,j+1,0]-nodes[i,j,0]
+                top = nodes[i+1,j+1,0]-nodes[i+1,j,0]
+                V[i,j] = h*base*top*0.5
+        return V
     def plot(self):
         plt.scatter(self.cell_centers[:,:,0],self.cell_centers[:,:,1])
         plt.scatter(self.nodes[:,:,0], self.nodes[:,:,1])
@@ -59,7 +69,7 @@ class Mesh:
     def vecToMesh(self,h)->(int,int):
         return (h % self.cell_centers.shape[0], math.floor(h/self.cell_centers.shape[0]))
 
-    def plot_function(self,vec):
+    def plot_vector(self,vec):
         vec_center = np.zeros((self.cell_centers.shape[0],self.cell_centers.shape[1]))
         num_unknowns = self.cell_centers.shape[1]*self.cell_centers.shape[0]
         for i in range(num_unknowns):
@@ -68,5 +78,19 @@ class Mesh:
         ax = fig.add_subplot(1,1,1,projection='3d')
         ax.plot_surface(self.cell_centers[:,:,0],self.cell_centers[:,:,1],vec_center,cmap='viridis', edgecolor='none')
         ax.set_title('computed solution')
-        ax.set_zlim(0.00, -0.07)
+        ax.set_zlim(0.00, 3)
         plt.show()
+    def plot_funtion(self,fun):
+        vec_center = np.zeros((self.cell_centers.shape[0],self.cell_centers.shape[1]))
+        num_unknowns = self.cell_centers.shape[1]*self.cell_centers.shape[0]
+        for i in range(num_unknowns):
+            xx,yy = self.cell_centers[self.vecToMesh(i)]
+            vec_center[self.vecToMesh(i)] = fun(xx,yy)
+        fig = plt.figure(figsize=plt.figaspect(0.5))
+        ax = fig.add_subplot(1,1,1,projection='3d')
+        ax.plot_surface(self.cell_centers[:,:,0],self.cell_centers[:,:,1],vec_center,cmap='viridis', edgecolor='none')
+        ax.set_title('computed solution')
+        ax.set_zlim(0.00, 3)
+        plt.show()
+
+    
