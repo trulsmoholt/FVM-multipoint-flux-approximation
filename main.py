@@ -17,8 +17,8 @@ import sympy as sym
 import math
 
 K = np.array([[1,0],[0,1]])
-nx = 24
-ny = 24
+nx = 48
+ny = 48
 x = sym.Symbol('x')
 y = sym.Symbol('y')
 u_fabric = sym.cos(y*math.pi)*sym.cosh(x*math.pi)
@@ -30,7 +30,7 @@ u_lam = sym.lambdify([x,y],u_fabric)
 
 
 T = lambda x,y: (0.9*y+0.1)*math.sqrt(x) + (0.9-0.9*y)*x**2
-mesh = Mesh(nx,ny,lambda x,y:0.001*y*x + x)
+mesh = Mesh(nx,ny,lambda x,y:0.000001*y*x + x)
 mesh.plot()
 A = compute_matrix(mesh, K)
 f = compute_vector(mesh,f,u_lam)
@@ -53,7 +53,7 @@ def compute_error(mesh,u,u_fabric):
             u_fabric_vec[mesh.meshToVec(i,j)] = u_fabric(mesh.cell_centers[i,j,0],mesh.cell_centers[i,j,1])
             volumes[mesh.meshToVec(i,j)] = mesh.volumes[i,j]
 
-    return math.sqrt(np.square(u-u_fabric_vec).T@volumes)/(np.ones(volumes.shape).T@volumes)
+    return math.sqrt(np.square(u-u_fabric_vec).T@volumes/(np.ones(volumes.shape).T@volumes))
 
 
 
