@@ -1,6 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
+from mpl_toolkits.mplot3d import Axes3D
+import math
+
 
 class Mesh:
     def __init__(self,num_nodes_x,num_nodes_y,P):
@@ -39,6 +42,7 @@ class Mesh:
                 y = nodes[i,j,1] + h*(b+2*a)/(3*(a+b))
                 cell_centers[i,j] = np.array([x,y])
         return cell_centers
+
     def plot(self):
         plt.scatter(self.cell_centers[:,:,0],self.cell_centers[:,:,1])
         plt.scatter(self.nodes[:,:,0], self.nodes[:,:,1])
@@ -47,4 +51,22 @@ class Mesh:
         segs2 = segs1.transpose(1,0,2)
         plt.gca().add_collection(LineCollection(segs1))
         plt.gca().add_collection(LineCollection(segs2))
+        plt.show()
+
+    def meshToVec(self,j,i)->int:
+        return i*self.cell_centers.shape[1] + j
+
+    def vecToMesh(self,h)->(int,int):
+        return (h % self.cell_centers.shape[1], math.floor(h/self.cell_centers.shape[1]))
+
+    def plot_function(self,vec):
+        vec_center = np.zeros((self.cell_centers.shape[0],self.cell_centers.shape[1]))
+        num_unknowns = self.cell_centers.shape[1]*self.cell_centers.shape[0]
+        for i in range(num_unknowns):
+            vec_center[self.vecToMesh(i)] = vec[i]
+        fig = plt.figure(figsize=plt.figaspect(0.5))
+        ax = fig.add_subplot(1,1,1,projection='3d')
+        ax.plot_surface(self.cell_centers[:,:,0],self.cell_centers[:,:,1],vec_center,cmap='viridis', edgecolor='none')
+        ax.set_title('computed solution')
+        ax.set_zlim(0.00, -0.07)
         plt.show()

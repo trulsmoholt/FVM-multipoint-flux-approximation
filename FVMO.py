@@ -1,209 +1,159 @@
 import numpy as np
-import sympy as sym
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from differentiation import gradient, divergence
-import math
-
-def run(h):
-    num_nodes = math.ceil(1/h+1)
-
-    bottom_left = (0,0)
-    top_right = (1,1)
-
-    x = sym.Symbol('x')
-    y = sym.Symbol('y')
-
-    K=np.array([[1,0],[0,1]])
-    u_fabric = (-x*y*(1-x)*(1-y))
-    f = -divergence(gradient(u_fabric,[x,y]),[x,y],permability_tensor=K)
 
 
-    num_nodes_x = num_nodes
-    num_nodes_y = num_nodes
-    num_nodes = num_nodes_x*num_nodes_y
-    u_h = np.zeros(num_nodes)
-    nodes_x, nodes_y = np.meshgrid(np.linspace(bottom_left[0],top_right[0],num=num_nodes_x),np.linspace(bottom_left[1],top_right[1],num=num_nodes_y))
-    nodes = np.stack([nodes_x,nodes_y],axis=2)
-    u_fabric_vec = np.zeros(num_nodes)
-    u_fabric_nodes = np.zeros((num_nodes_y,num_nodes_x))
-    f_vec = np.zeros(num_nodes)
 
-    def meshToVec(j,i)->int:
-        return i*num_nodes_y + j
-    def vecToMesh(h)->(int,int):
-        return (h % num_nodes_y, math.floor(h/num_nodes_y))
-
-    a1=np.array([[0],[1]])
-    a2=np.array([[1],[0]])
-    V = 1
+from mesh import Mesh
 
 
-    a = float(1/V*a1.T@K@a1)
-    b = float(1/V*a2.T@K@a2)
-    c = float(1/V*a1.T@K@a2)
+def compute_matrix(mesh,K):
+    nodes = mesh.nodes
+    cell_centers = mesh.cell_centers
+    k_global = np.ones((cell_centers.shape[0],cell_centers.shape[1]))
 
-    A = np.array([[2*a  ,-c     ,0      ,c      ],
-                [-c   ,2*b    , c     , 0     ],
-                [0    ,c      , 2*a   , -c    ],
-                [c    ,0      ,-c     ,2*b    ]])
+    k_global = np.ones((cell_centers.shape[0],cell_centers.shape[1]))
+    nx = nodes.shape[1]
+    ny = nodes.shape[0]
 
-    B = np.array([[a+c  ,a-c    ,0      ,0      ],
-                [0    ,b-c    ,b+c    ,0      ],
-                [0    ,0      ,a+c    ,a-c    ],
-                [b+c  ,0      ,0      ,b-c    ]])
+    num_unknowns = cell_centers.shape[1]*cell_centers.shape[0]
 
-    C = np.array([[-a   ,0  ,0  ,-c ],
-                [c    ,-b ,0  ,0  ],
-                [0    ,c  ,a  ,0  ],
-                [0    ,0  ,-c ,b  ]])
+    meshToVec = mesh.meshToVec
+    vecToMesh = mesh.vecToMesh
+    matrix = np.zeros((num_unknowns,num_unknowns))
 
-    D = np.array([[-(a+c)   ,0      ,0      ,0      ],
-                [0        ,-(b-c) ,0      ,0      ],
-                [0        ,0      ,a+c    ,0      ],
-                [0        ,0      ,0      ,b-c    ]])
 
-    T = C@np.linalg.inv(A)@B-D
-
-    def compute_flux_interface_east(j,i,A):
-        current_cell = meshToVec(j,i)
-        A[current_cell,meshToVec(j,i)] += T[0,0] + T[2,3]
-        A[current_cell,meshToVec(j,i+1)] += T[0,1] + T[2,2]
-        A[current_cell,meshToVec(j+1,i+1)] += T[0,2]
-        A[current_cell,meshToVec(j+1,i)] += T[0,3]
-        A[current_cell,meshToVec(j-1,i)] += T[2,0]
-        A[current_cell,meshToVec(j-1,i+1)] += T[2,1]
-        return
-    def compute_flux_interface_west(j,i,A):
-        i = i - 1
-        current_cell = meshToVec(j,i+1)
-        A[current_cell,meshToVec(j,i)] += -T[0,0] + -T[2,3]
-        A[current_cell,meshToVec(j,i+1)] += -T[0,1] - T[2,2]
-        A[current_cell,meshToVec(j+1,i+1)] += -T[0,2]
-        A[current_cell,meshToVec(j+1,i)] += -T[0,3]
-        A[current_cell,meshToVec(j-1,i)] += -T[2,0]
-        A[current_cell,meshToVec(j-1,i+1)] += -T[2,1]
-        return
-
-    def compute_flux_interface_north(j,i,A):
-        current_cell = meshToVec(j,i)
-        A[current_cell,meshToVec(j,i)] += T[1,1] + T[3,0]
-        A[current_cell,meshToVec(j+1,i)] += T[1,2] + T[3,3]
-        A[current_cell,meshToVec(j+1,i-1)] += T[1,3]
-        A[current_cell,meshToVec(j,i-1)] += T[1,0]
-        A[current_cell,meshToVec(j,i+1)] += T[3,1]
-        A[current_cell,meshToVec(j+1,i+1)] += T[3,2]
-        return
-    def compute_flux_interface_south(j,i,A):
-        j = j -1
-        current_cell = meshToVec(j+1,i)
-        A[current_cell,meshToVec(j,i)] += -T[1,1] - T[3,0]
-        A[current_cell,meshToVec(j+1,i)] += -T[1,2] - T[3,3]
-        A[current_cell,meshToVec(j+1,i-1)] += -T[1,3]
-        A[current_cell,meshToVec(j,i-1)] += -T[1,0]
-        A[current_cell,meshToVec(j,i+1)] += -T[3,1]
-        A[current_cell,meshToVec(j+1,i+1)] += -T[3,2]
-        return
-    def compute_flux_cell(j,i,A):
-        compute_flux_interface_east(j,i,A)
-        compute_flux_interface_north(j,i,A)
-        compute_flux_interface_west(j,i,A)
-        compute_flux_interface_south(j,i,A)
-        return
-    def compute_source(j,i,f_vect,nodes):
-        north_face = (nodes[j,i+1,0]-nodes[j,i-1,0])/2
-        east_face = (nodes[j+1,i,1]-nodes[j-1,i,1])/2
-        V = north_face*east_face
-        x_d = nodes[j,i,0]
-        y_d = nodes[j,i,1]
-        f_vec[meshToVec(j,i)] = V*f.subs([(x,x_d),(y,y_d)])
-
-    def integrate(f,j,i):
-        north_face = (nodes[j,i+1,0]-nodes[j,i-1,0])/2
-        east_face = (nodes[j+1,i,1]-nodes[j-1,i,1])/2
-        V = north_face*east_face
-        x_d = nodes[j,i,0]
-        y_d = nodes[j,i,1]
-
-        #return V*(1/36)*(16*f(x_d,y_d)+4*f(x_d,y_d+north_face/2)+4*f(x_d,y_d-north_face/2)+4*f(x_d+east_face/2,y_d)+4*f(x_d-east_face/2,y_d)+f(x_d + east_face/2,y_d+north_face/2)+f(x_d + east_face/2,y_d-north_face/2)+f(x_d-east_face/2,y_d-east_face/2)+f(x_d - east_face/2,y_d + north_face/2))
-        return V*(f(x_d,y_d))
+    def local_assembler(j,i,vec):
+        global_vec = np.zeros(num_unknowns)
         
+        global_vec[meshToVec(j-1,i-1)] = vec[0]
+        global_vec[meshToVec(j-1,i)] = vec[1]
+        global_vec[meshToVec(j,i)] = vec[2]
+        global_vec[meshToVec(j,i-1)] = vec[3]
 
+        return global_vec
 
-    #Matrix assembly
-    A = np.zeros((num_nodes,num_nodes))
-    f_vec = np.zeros(num_nodes)
-    f_lam = sym.lambdify([x,y],f)
-    u_lam = sym.lambdify([x,y],u_fabric)
+    for i in range(1,nodes.shape[0]-1):
+        for j in range(1,nodes.shape[1]-1):
+            omega = np.zeros((4,4,2))
+            interface = np.zeros((4,2))
+            centers = np.zeros((4,2))
+            n = np.zeros((4,2))
+            k_loc = np.zeros((4))
 
-    for i in range(num_nodes_x):
-        for j in range(num_nodes_y):
-            vec_i = meshToVec(j,i)
+            #D
+            v = nodes[i,j-1]-nodes[i,j]
+            interface[3,:] = nodes[i,j] + 0.5*(v)
+            n[3,:] = 0.5*np.array([v[1],-v[0]])
+            #A
+            v = nodes[i-1,j]-nodes[i,j]
+            interface[0,:] = nodes[i,j] + 0.5*(v)
+            n[0,:] = 0.5*np.array([-v[1],v[0]])
+            #B
+            v = nodes[i,j+1]-nodes[i,j]
+            interface[1,:] = nodes[i,j] + 0.5*(v)
+            n[1,:] = 0.5*np.array([-v[1],v[0]])
+            #C
+            v = nodes[i+1,j]-nodes[i,j]
+            interface[2,:] = nodes[i,j] + 0.5*(v)
+            n[2,:] = 0.5*np.array([v[1],-v[0]])
 
-            if (i==0) or (i==num_nodes_x-1) or (j==0) or (j==num_nodes_y-1):
-                A[vec_i,vec_i] = 1
-                f_vec[vec_i] = 0
-                continue
-            compute_flux_cell(j,i,A)  
-            f_vec[meshToVec(j,i)] = integrate(f_lam,j,i)
-            x_d = nodes[j,i,0]
-            y_d = nodes[j,i,1]   
-            u_fabric_vec[vec_i] = u_lam(x_d,y_d)
-            u_fabric_nodes[j,i] = u_lam(x_d,y_d)
-    u = np.linalg.solve(A,f_vec)
+            centers[0,:] = cell_centers[i-1,j-1]
+            k_loc[0] = k_global[i-1,j-1]
 
+            centers[1,:] = cell_centers[i-1,j]
+            k_loc[1] = k_global[i-1,j]
 
+            centers[2,:] = cell_centers[i,j]
+            k_loc[2] = k_global[i,j]
 
-    
+            centers[3,:] = cell_centers[i,j-1]
+            k_loc[3] = k_global[i,j-1]
 
-    u_vec = np.linalg.solve(A,f_vec)
-    u_nodes = u_fabric_nodes.copy()
-    f_nodes = u_fabric_nodes.copy()
-    err_nodes = np.zeros(num_nodes)
-    err_nodes_max = 0
-    for i in range(num_nodes):
-        u_nodes[vecToMesh(i)] = u_vec[i]
-        f_nodes[vecToMesh(i)] = f_vec[i]
-        err_nodes[i] = abs(u_fabric_vec[i]-u_vec[i])
-    err_nodes_max = np.max(err_nodes)
-    print('max error at nodes ',err_nodes_max)
+            V = np.zeros((4,2,2))
 
+            for jj in range(4):
+                i_2 = interface[jj-1]
+                i_1 = interface[jj]
 
-    L2_error = 0
-    V = (nodes[0,1,0]-nodes[0,0,0])**2
-    for i in range(num_nodes_x):
-        for j in range(num_nodes_y):
-            if (j==num_nodes_y-1) or (i==num_nodes_x-1):
-                continue
-            u_1 = u_vec[meshToVec(i,j)]
-            u_2 = u_vec[meshToVec(i+1,j)]
-            u_3 = u_vec[meshToVec(i+1,j+1)]
-            u_4 = u_vec[meshToVec(i,j+1)]
-            u = (u_1 + u_2 + u_3 + u_4)/4
+                X = np.array([i_1-centers[jj],i_2-centers[jj]])
+                V[jj,:,:] = np.linalg.inv(X)
+                
 
-            difference = (u_lam(nodes[j,i,0]+h/2,nodes[j,i,1]+h/2) - u)**2
-            # print(difference)
-            # print(nodes[j,i,0]+h/2)
-            # print(nodes[j,i,1]+h/2)
+            for ii in range(4):
+                for jj in range(4):
+                    for kk in range(2):
+                        omega[ii,jj,kk] = -n[ii,:].T@K@V[jj,kk,:]*k_loc[jj]
             
+            #print(omega)
+
+            A = np.array([[omega[0,0,0]+omega[0,1,1],omega[0,1,0]              ,0                          ,omega[0,0,1]               ],
+                        [omega[1,1,1]             ,omega[1,1,0]+omega[1,2,1]  ,omega[1,2,0]              ,0                          ],
+                        [0                        ,omega[2,2,1]               ,omega[2,2,0]+omega[2,3,1]  ,omega[2,3,0]              ],
+                        [omega[3,0,0]            ,0                          ,omega[3,3,1]               ,omega[3,3,0]+omega[3,0,1]  ]])
             
-            #print(u_lam(nodes[j,i,0]+(1/(2*num_nodes)),nodes[j,i,1]+(1/(2*num_nodes))))
-            L2_error = L2_error + V*difference
+
+
+            B = np.array([[omega[0,0,0]+omega[0,0,1] ,omega[0,1,0]+omega[0,1,1] ,0                          ,0                          ],
+                        [0                         ,omega[1,1,0]+omega[1,1,1]  ,omega[1,2,0]+omega[1,2,1] ,0                          ],
+                        [0                         ,0                          ,omega[2,2,0]+omega[2,2,1]  ,omega[2,3,0]+omega[2,3,1] ],
+                        [omega[3,0,0]+omega[3,0,1],0                          ,0                          ,omega[3,3,0]+omega[3,3,1]  ]])
 
 
 
-    print('L2 error ',math.sqrt(L2_error))
-    fig = plt.figure(figsize=plt.figaspect(0.5))
-    ax = fig.add_subplot(1,2,1,projection='3d')
-    ax.plot_surface(nodes[:,:,0],nodes[:,:,1],u_nodes,cmap='viridis', edgecolor='none')
-    ax.set_title('computed solution')
-    ax.set_zlim(0.00, -0.07)
+            C = np.array([[omega[0,0,0],0           ,0           ,omega[0,0,1]],
+                        [omega[1,1,1],omega[1,1,0],0           ,0           ],
+                        [0           ,omega[2,2,1],omega[2,2,0],0           ],
+                        [0           ,0           ,omega[3,3,1],omega[3,3,0]]])       
 
 
-    ax = fig.add_subplot(1, 2, 2, projection='3d')
-    ax.plot_surface(nodes[:,:,0],nodes[:,:,1],u_fabric_nodes,cmap='viridis', edgecolor='none')
-    ax.set_title('exact solution')
-    ax.set_zlim(0.00, -0.07)
+            D = np.array([[omega[0,0,0]+omega[0,0,1],0                        ,0                        ,0                        ],
+                        [0                        ,omega[1,1,0]+omega[1,1,1],0                        ,0                        ],
+                        [0                        ,0                        ,omega[2,2,1]+omega[2,2,0],0                        ],
+                        [0                        ,0                         ,0                       ,omega[3,3,0]+omega[3,3,1]]])
+            T = C@np.linalg.inv(A)@B-D
 
-    plt.show()
-    return math.sqrt(L2_error)
+            assembler = lambda vec: local_assembler(i,j,vec)
+
+            matrix[meshToVec(i-1,j-1),:] += assembler(T[0,:] - T[3,:])
+
+            matrix[meshToVec(i-1,j),:] += assembler(-T[0,:] - T[1,:])
+
+
+            matrix[meshToVec(i,j),:] += assembler(T[1,:] - T[2,:])
+
+            matrix[meshToVec(i,j-1),:] += assembler(T[2,:] + T[3,:])
+    for i in range(cell_centers.shape[0]):
+        for j in range(cell_centers.shape[1]):
+            if (i==0) or (i==ny-2) or (j==0) or (j==nx-2):
+                matrix[meshToVec(i,j),:] = 0
+
+                matrix[meshToVec(i,j),meshToVec(i,j)] = 1
+
+    return matrix
+
+
+
+def compute_vector(mesh,f,boundary):
+    nodes = mesh.nodes
+    cell_centers = mesh.cell_centers
+    num_unknowns = cell_centers.shape[1]*cell_centers.shape[0]
+    nx = nodes.shape[1]
+    ny = nodes.shape[0]
+    meshToVec = mesh.meshToVec
+    vecToMesh = mesh.vecToMesh
+    vector = np.zeros(num_unknowns)
+    h_y = nodes[1,0,1]-nodes[0,0,1]
+    for i in range(cell_centers.shape[0]):
+        for j in range(cell_centers.shape[1]):
+            base = nodes[i,j+1,0]-nodes[i,j,0]
+            top = nodes[i+1,j+1,0]-nodes[i+1,j,0]
+            if (i==0) or (i==ny-2) or (j==0) or (j==nx-2):
+                vector[meshToVec(i,j)]= h_y*0.5*(base+top)*boundary(cell_centers[i,j,0],cell_centers[i,j,1])
+                continue
+            vector[meshToVec(i,j)] += h_y*0.5*(base+top)*f(cell_centers[i,j,0],cell_centers[i,j,1])
+    return vector
+
+
+
+
+
+
