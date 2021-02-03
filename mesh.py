@@ -34,13 +34,14 @@ class Mesh:
         h = float(nodes[1,0,1]-nodes[0,0,1])
         for i in range(num_nodes_y-1):
             for j in range(num_nodes_x-1):
-                b = float(nodes[i,j+1,0]-nodes[i,j,0])
-                a = float(nodes[i+1,j+1,0]-nodes[i+1,j,0])
-                c = np.linalg.norm(nodes[i,j]-nodes[i+1,j])
-                d = np.linalg.norm(nodes[i,j+1]-nodes[i+1,j+1])
-                x = nodes[i,j,0] + b/2 + ((2*a + b)*(c**2-d**2))/(6*(b**2-a**2))
-                y = nodes[i,j,1] + h*(b+2*a)/(3*(a+b))
-                cell_centers[i,j] = np.array([x,y])
+                # b = float(nodes[i,j+1,0]-nodes[i,j,0])
+                # a = float(nodes[i+1,j+1,0]-nodes[i+1,j,0])
+                # c = np.linalg.norm(nodes[i,j]-nodes[i+1,j])
+                # d = np.linalg.norm(nodes[i,j+1]-nodes[i+1,j+1])
+                # x = nodes[i,j,0] + b/2 + ((2*a + b)*(c**2-d**2))/(6*(b**2-a**2))
+                # y = nodes[i,j,1] + h*(b+2*a)/(3*(a+b))
+                x = (nodes[i,j]+nodes[i+1,j]+nodes[i,j+1]+nodes[i+1,j+1])*0.25
+                cell_centers[i,j] = np.array([x[0],x[1]])
         return cell_centers
     def __compute_volumes(self,nodes):
         num_nodes_y = nodes.shape[0]
