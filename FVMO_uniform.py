@@ -5,10 +5,8 @@ from mpl_toolkits.mplot3d import Axes3D
 from differentiation import gradient, divergence
 import math
 
-num_nodes = 5
-
+num_nodes = 5    
 h = 1/(num_nodes-1)
-
 bottom_left = (0,0)
 top_right = (1,1)
 
@@ -16,7 +14,7 @@ x = sym.Symbol('x')
 y = sym.Symbol('y')
 
 K=np.array([[1,2],[2,1]])
-u_fabric = (x*y*(1-x)*(1-y))
+u_fabric = (-x*y*(1-x)*(1-y))
 f = -divergence(gradient(u_fabric,[x,y]),[x,y],permability_tensor=K)
 
 
@@ -151,11 +149,10 @@ for i in range(num_nodes_x):
         y_d = nodes[j,i,1]   
         u_fabric_vec[vec_i] = u_lam(x_d,y_d)
         u_fabric_nodes[j,i] = u_lam(x_d,y_d)
-print(A)
 u = np.linalg.solve(A,f_vec)
 
 
-
+print(A[7,:])
 
 
 u_vec = np.linalg.solve(A,f_vec)
