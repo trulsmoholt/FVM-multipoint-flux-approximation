@@ -24,15 +24,11 @@ u_lam = sym.lambdify([x,y],u_fabric)
 
 
 #T1 = lambda x,y: (0.9*y+0.1)*math.sqrt(x) + (0.9-0.9*y)*x**2
-T = lambda x,y: x + 0.3*y
+T = lambda x,y: x + 0.5*y
 
-mesh = Mesh(4,4,T)
-
+mesh = Mesh(nx,ny,T)
 mesh.plot()
-print('noden ',mesh.nodes[1,1])
-print('har cellecenter ',mesh.cell_centers[1,1])
-print('og midpunkter ',mesh.midpoints[1,1,:,:])
-print('og normalvektorer ',mesh.normals[1,1,:,:])
+A = compute_matrix(mesh,K)
 
 
 
@@ -63,11 +59,14 @@ def run_test(K,source,u_fabric,n,T):
     mesh.plot_funtion(u_fabric,'exact solution')
     return compute_error(mesh,u,u_fabric)
 
-# result = np.zeros((4,2))
-# for i in range(3,7):
-#     result[i-3,0] = math.log(2**i,2)
-#     result[i-3,1] = math.log(run_test(K,source,u_lam,2**i,T),2)
+result = np.zeros((4,2))
+for i in range(3,7):
+    result[i-3,0] = math.log(2**i,2)
+    result[i-3,1] = math.log(run_test(K,source,u_lam,2**i,T),2)
 
 plt.plot(result[:,0],result[:,1],'o-')
+plt.grid()
+plt.xlabel('$log_2 n$')
+plt.ylabel('$log_2 e$')
 
 plt.show()

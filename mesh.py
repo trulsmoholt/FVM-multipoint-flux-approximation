@@ -11,7 +11,7 @@ class Mesh:
         self.num_nodes_y = num_nodes_y
 
         bottom_left = (0,0)
-        top_right = (0.5,0.5)
+        top_right = (1,1)
         nodes_x, nodes_y = np.meshgrid(np.linspace(bottom_left[0],top_right[0],num=num_nodes_x),np.linspace(bottom_left[1],top_right[1],num=num_nodes_y))
         nodes = np.stack([nodes_x,nodes_y],axis=2)
 
@@ -23,7 +23,7 @@ class Mesh:
 
     def __perturb(self,nodes, P):
         for y,row in enumerate(nodes):
-            transform = lambda x: P(x,y/self.num_nodes_y)
+            transform = lambda x: P(x,y/(self.num_nodes_y-1))
             T = np.vectorize(transform)
             nodes[y,:,0] = T(row[:,0])
         return nodes

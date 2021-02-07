@@ -42,24 +42,24 @@ def compute_matrix(mesh,K):
             #D
             v = nodes[i,j-1]-nodes[i,j]
             interface[3,:] = nodes[i,j] + 0.5*(v)
-            n[3,:] = 0.5*np.array([-v[1],v[0]])
+            n[3,:] = mesh.normals[i,j-1,1,:]
             centers[3,:] = cell_centers[i,j-1]
 
             #A
             v = nodes[i-1,j]-nodes[i,j]
             interface[0,:] = nodes[i,j] + 0.5*(v)
-            n[0,:] = 0.5*np.array([-v[1],v[0]])
+            n[0,:] = mesh.normals[i-1,j,0,:]
             centers[0,:] = cell_centers[i-1,j-1]
             #B
             v = nodes[i,j+1]-nodes[i,j]
             interface[1,:] = nodes[i,j] + 0.5*(v)
-            n[1,:] = 0.5*np.array([-v[1],v[0]])
+            n[1,:] = mesh.normals[i,j,1,:]
             centers[1,:] = cell_centers[i-1,j]
 
             #C
             v = nodes[i+1,j]-nodes[i,j]
             interface[2,:] = nodes[i,j] + 0.5*(v)
-            n[2,:] = 0.5*np.array([-v[1],v[0]])
+            n[2,:] = mesh.normals[i,j,0,:]
             centers[2,:] = cell_centers[i,j]
 
 
@@ -85,21 +85,21 @@ def compute_matrix(mesh,K):
             for ii in range(4):
                 for jj in range(4):
                     for kk in range(2):
-                        omega[ii,jj,kk] = -n[ii,:].T@K@V[jj,kk,:]
+                        omega[ii,jj,kk] = -n[ii,:].T@K@V[jj,:,kk]
             
             #print(omega)
 
-            A = np.array([[omega[0,0,0]+omega[0,1,1],omega[0,1,0]              ,0                          ,omega[0,0,1]               ],
-                        [omega[1,1,1]             ,omega[1,1,0]+omega[1,2,1]  ,+omega[1,2,0]              ,0                          ],
-                        [0                        ,omega[2,2,1]               ,omega[2,2,0]+omega[2,3,1]  ,omega[2,3,0]              ],
-                        [omega[3,0,0]            ,0                          ,+omega[3,3,1]               ,+omega[3,3,0]+omega[3,0,1]  ]])
+            A = np.array([[omega[0,0,0]-omega[0,1,1],-omega[0,1,0]              ,0                          ,omega[0,0,1]               ],
+                        [omega[1,1,1]             ,omega[1,1,0]-omega[1,2,1]  ,-omega[1,2,0]              ,0                          ],
+                        [0                        ,omega[2,2,1]               ,omega[2,2,0]-omega[2,3,1]  ,-omega[2,3,0]              ],
+                        [-omega[3,0,0]            ,0                          ,+omega[3,3,1]               ,+omega[3,3,0]-omega[3,0,1]  ]])
             
 
 
-            B = np.array([[omega[0,0,0]+omega[0,0,1] ,omega[0,1,0]+omega[0,1,1] ,0                          ,0                          ],
-                        [0                         ,omega[1,1,0]+omega[1,1,1]  ,omega[1,2,0]+omega[1,2,1] ,0                          ],
-                        [0                         ,0                          ,omega[2,2,0]+omega[2,2,1]  ,omega[2,3,0]+omega[2,3,1] ],
-                        [omega[3,0,0]+omega[3,0,1],0                          ,0                          ,omega[3,3,0]+omega[3,3,1]  ]])
+            B = np.array([[omega[0,0,0]+omega[0,0,1] ,-omega[0,1,0]-omega[0,1,1] ,0                          ,0                          ],
+                        [0                         ,omega[1,1,0]+omega[1,1,1]  ,-omega[1,2,0]-omega[1,2,1] ,0                          ],
+                        [0                         ,0                          ,omega[2,2,0]+omega[2,2,1]  ,-omega[2,3,0]-omega[2,3,1] ],
+                        [-omega[3,0,0]-omega[3,0,1],0                          ,0                          ,omega[3,3,0]+omega[3,3,1]  ]])
 
 
 
@@ -115,18 +115,16 @@ def compute_matrix(mesh,K):
                         [0                        ,0                         ,0                       ,omega[3,3,0]+omega[3,3,1]]])
             T = C@np.linalg.inv(A)@B-D
 
-            T = T
-
             assembler = lambda vec: local_assembler(i,j,vec)
 
-            matrix[meshToVec(i-1,j-1),:] += assembler(T[0,:] )
+            matrix[meshToVec(i-1,j-1),:] += assembler(T[0,:]+T[3,:])
 
-            matrix[meshToVec(i-1,j),:] += assembler(  -T[1,:])
+            matrix[meshToVec(i-1,j),:] += assembler( T[1,:] + -T[0,:])
 
+            matrix[meshToVec(i,j),:] += assembler(-T[2,:]-T[1,:])
 
-            matrix[meshToVec(i,j),:] += assembler( T[2,:])
+            matrix[meshToVec(i,j-1),:] += assembler( -T[3,:]+T[2,:])
 
-            matrix[meshToVec(i,j-1),:] += assembler( -T[3,:])
     for i in range(cell_centers.shape[0]):
         for j in range(cell_centers.shape[1]):
             if (i==0) or (i==ny-2) or (j==0) or (j==nx-2):
