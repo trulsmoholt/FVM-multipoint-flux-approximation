@@ -45,7 +45,23 @@ def compute_matrix(mesh,K):
 
         return V
     
-    def compute_T(omega, xi_1, xi_2):
+    def compute_T(center):
+        omega  = np.zeros((2,3,7))
+        V = compute_triangle_normals(center,interface,centers,nodes[i,j])
+        t = [V[0,:].T@R@V[1,:],V[2,:].T@R@V[3,:],V[4,:].T@R@V[5,:]]
+
+        for ii in range(2):
+            for jj in range(3):
+                for kk in range(7):
+                    if ii == 0:
+                        omega[ii,jj,kk] = n[center,:].T@K@V[kk,:]*1/t[jj]
+                    else:
+                        omega[ii,jj,kk] = n[center-1,:].T@K@V[kk,:]*1/t[jj]
+
+
+        xi_1 = (V[6,:].T@R@V[0,:])/(V[0,:].T@R@V[1,:])
+        xi_2 = (V[6,:].T@R@V[1,:])/(V[0,:].T@R@V[1,:])
+
         C = np.array([[-omega[0,0,0],   -omega[0,0,1]],
                 [-omega[1,0,0],   -omega[1,0,1]]])
 
@@ -108,78 +124,8 @@ def compute_matrix(mesh,K):
 
             k_loc[3] = k_global[i,j-1]
 
-
-
-
-            omega  = np.zeros((2,3,7))
-            V = compute_triangle_normals(1,interface,centers,nodes[i,j])
-            t = [V[0,:].T@R@V[1,:],V[2,:].T@R@V[3,:],V[4,:].T@R@V[5,:]]
-
-            for ii in range(2):
-                for jj in range(3):
-                    for kk in range(7):
-                        if ii == 0:
-                            omega[ii,jj,kk] = n[1,:].T@K@V[kk,:]*1/t[jj]
-                        else:
-                            omega[ii,jj,kk] = n[0,:].T@K@V[kk,:]*1/t[jj]
-
-
-            xi_1 = (V[6,:].T@R@V[0,:])/(V[0,:].T@R@V[1,:])
-            xi_2 = (V[6,:].T@R@V[1,:])/(V[0,:].T@R@V[1,:])
-
-            T[1,:,:] = compute_T(omega,xi_1,xi_2)
-
-
-
-
-            omega  = np.zeros((2,3,7))
-            V = compute_triangle_normals(3,interface,centers,nodes[i,j])
-            t = [V[0,:].T@R@V[1,:],V[2,:].T@R@V[3,:],V[4,:].T@R@V[5,:]]
-            for ii in range(2):
-                for jj in range(3):
-                    for kk in range(7):
-                        if ii == 0:
-                            omega[ii,jj,kk] = n[3,:].T@K@V[kk,:]*1/t[jj]
-                        else:
-                            omega[ii,jj,kk] = n[2,:].T@K@V[kk,:]*1/t[jj]
-                   
-
-            xi_1 = (V[6,:].T@R@V[0,:])/(V[0,:].T@R@V[1,:])
-            xi_2 = (V[6,:].T@R@V[1,:])/(V[0,:].T@R@V[1,:])
-
-            T[3,:,:] = compute_T(omega,xi_1,xi_2)
-
-            omega  = np.zeros((2,3,7))
-            V = compute_triangle_normals(0,interface,centers,nodes[i,j])
-            t = [V[0,:].T@R@V[1,:],V[2,:].T@R@V[3,:],V[4,:].T@R@V[5,:]]
-            for ii in range(2):
-                for jj in range(3):
-                    for kk in range(7):
-                        if ii == 0:
-                            omega[ii,jj,kk] = n[0,:].T@K@V[kk,:]*1/t[jj]
-                        else:
-                            omega[ii,jj,kk] = n[3,:].T@K@V[kk,:]*1/t[jj]
-
-            xi_1 = (V[6,:].T@R@V[0,:])/(V[0,:].T@R@V[1,:])
-            xi_2 = (V[6,:].T@R@V[1,:])/(V[0,:].T@R@V[1,:])
-
-            T[0,:,:] = compute_T(omega,xi_1,xi_2)
-
-            omega  = np.zeros((2,3,7))
-            V = compute_triangle_normals(2,interface,centers,nodes[i,j])
-            t = [V[0,:].T@R@V[1,:],V[2,:].T@R@V[3,:],V[4,:].T@R@V[5,:]]
-            for ii in range(2):
-                for jj in range(3):
-                    for kk in range(7):
-                        if ii == 0:
-                            omega[ii,jj,kk] = n[2,:].T@K@V[kk,:]*1/t[jj]
-                        else:
-                            omega[ii,jj,kk] = n[1,:].T@K@V[kk,:]*1/t[jj]
-
-            xi_1 = (V[6,:].T@R@V[0,:])/(V[0,:].T@R@V[1,:])
-            xi_2 = (V[6,:].T@R@V[1,:])/(V[0,:].T@R@V[1,:])
-
-            T[2,:,:] = compute_T(omega,xi_1,xi_2)
+            for ii in range(4):
+                T[ii,:,:] = compute_T(ii)
 
             index = [meshToVec(i-1,j-1),meshToVec(i-1,j),meshToVec(i,j),meshToVec(i,j-1)]
             assembler = lambda vec,center: local_assembler(i,j,vec,center)

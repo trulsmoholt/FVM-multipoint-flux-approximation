@@ -5,11 +5,12 @@ from differentiation import gradient, divergence
 import sympy as sym
 import math
 import matplotlib.pyplot as plt
+import random
 
 K = np.array([[1,0],[0,1]])
 transform = np.array([[1,0],[0.1,1]])
-nx = 3
-ny = 3
+nx = 6
+ny = 6
 x = sym.Symbol('x')
 y = sym.Symbol('y')
 u_fabric = sym.cos(y*math.pi)*sym.cosh(x*math.pi)
@@ -24,7 +25,7 @@ u_lam = sym.lambdify([x,y],u_fabric)
 
 
 #T = lambda x,y: (0.9*y+0.1)*math.sqrt(x) + (0.9-0.9*y)*x**2
-T = lambda x,y: x -0.5*y
+T = lambda x,y: x + 0.3*y
 
 mesh = Mesh(nx,ny,T)
 mesh.plot()
@@ -32,7 +33,8 @@ A = compute_matrix(mesh,K)
 
 
 
-
+def random_perturbation(h):
+    return lambda x,y: random.uniform(0,h)*random.choice([-1,1]) + x
 
 def compute_error(mesh,u,u_fabric):
     cx = mesh.cell_centers.shape[1]
@@ -49,7 +51,8 @@ def compute_error(mesh,u,u_fabric):
     print(err)
     return err
 
-def run_test(K,source,u_fabric,n,T):
+def run_test(K,source,u_fabric,n):
+    T = random_perturbation(0.5/(n))
     mesh = Mesh(n,n,T)
     mesh.plot()
     A = compute_matrix(mesh,K)
@@ -62,7 +65,7 @@ def run_test(K,source,u_fabric,n,T):
 result = np.zeros((4,2))
 for i in range(3,7):
     result[i-3,0] = math.log(2**i,2)
-    result[i-3,1] = math.log(run_test(K,source,u_lam,2**i,T),2)
+    result[i-3,1] = math.log(run_test(K,source,u_lam,2**i),2)
 
 plt.plot(result[:,0],result[:,1],'o-')
 plt.grid()
