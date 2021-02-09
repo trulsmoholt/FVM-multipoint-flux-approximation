@@ -1,6 +1,6 @@
 import numpy as np
 from mesh import Mesh
-from FVMO import compute_matrix, compute_vector
+from FVML import compute_matrix, compute_vector
 from differentiation import gradient, divergence
 import sympy as sym
 import math
@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 
 K = np.array([[1,0],[0,1]])
 transform = np.array([[1,0],[0.1,1]])
-nx = 6
-ny = 6
+nx = 3
+ny = 3
 x = sym.Symbol('x')
 y = sym.Symbol('y')
 u_fabric = sym.cos(y*math.pi)*sym.cosh(x*math.pi)
@@ -23,8 +23,8 @@ u_lam = sym.lambdify([x,y],u_fabric)
 
 
 
-#T1 = lambda x,y: (0.9*y+0.1)*math.sqrt(x) + (0.9-0.9*y)*x**2
-T = lambda x,y: x + 0.5*y
+#T = lambda x,y: (0.9*y+0.1)*math.sqrt(x) + (0.9-0.9*y)*x**2
+T = lambda x,y: x -0.5*y
 
 mesh = Mesh(nx,ny,T)
 mesh.plot()
