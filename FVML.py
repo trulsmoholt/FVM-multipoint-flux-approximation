@@ -17,13 +17,17 @@ def compute_matrix(mesh,K):
 
     R = np.array([[0,1],[-1,0]])
 
+    T = np.zeros((4,2,3))
+
     def local_assembler(j,i,vec,start):
         global_vec = np.zeros(num_unknowns)
 
         indexes = [meshToVec(j-1,i-1),meshToVec(j-1,i),meshToVec(j,i),meshToVec(j,i-1)]
 
-        for i,j in zip(range(start,start+2),range(2)):
-            global_vec[indexes[i%4]] = vec[j]
+
+        for ii,jj in zip(range(start,start+2),range(2)):
+
+            global_vec[indexes[ii%4]] = vec[jj]
 
         global_vec[indexes[(start-1)%4]] = vec[2]
         return global_vec
@@ -56,6 +60,12 @@ def compute_matrix(mesh,K):
 
         T = C@np.linalg.inv(A)@B+D
         return T
+    def choose_triangle(T,i):
+        if abs(T[i,0,0])<abs(T[(i+1)%4,1,0]):
+            return (T[i,0,:],i)
+        else:
+            return (T[(i+1)%4,1,:],(i+1)%4)
+
 
     for i in range(1,nodes.shape[0]-1):
         for j in range(1,nodes.shape[1]-1):
@@ -117,17 +127,8 @@ def compute_matrix(mesh,K):
             xi_1 = (V[6,:].T@R@V[0,:])/(V[0,:].T@R@V[1,:])
             xi_2 = (V[6,:].T@R@V[1,:])/(V[0,:].T@R@V[1,:])
 
-            T = compute_T(omega,xi_1,xi_2)
+            T[1,:,:] = compute_T(omega,xi_1,xi_2)
 
-            #triangle b)
-
-            assembler = lambda vec: local_assembler(i,j,vec,1)
-
-            matrix[meshToVec(i-1,j-1),:] += assembler(T[1,:])
-
-            matrix[meshToVec(i-1,j),:] += assembler(-T[1,:]+T[0,:])
-
-            matrix[meshToVec(i,j),:] += assembler(-T[0,:])
 
 
 
@@ -146,19 +147,47 @@ def compute_matrix(mesh,K):
             xi_1 = (V[6,:].T@R@V[0,:])/(V[0,:].T@R@V[1,:])
             xi_2 = (V[6,:].T@R@V[1,:])/(V[0,:].T@R@V[1,:])
 
-            T = compute_T(omega,xi_1,xi_2)
+            T[3,:,:] = compute_T(omega,xi_1,xi_2)
 
-            #triangle b)
+            omega  = np.zeros((2,3,7))
+            V = compute_triangle_normals(0,interface,centers,nodes[i,j])
+            t = [V[0,:].T@R@V[1,:],V[2,:].T@R@V[3,:],V[4,:].T@R@V[5,:]]
+            for ii in range(2):
+                for jj in range(3):
+                    for kk in range(7):
+                        if ii == 0:
+                            omega[ii,jj,kk] = n[0,:].T@K@V[kk,:]*1/t[jj]
+                        else:
+                            omega[ii,jj,kk] = n[3,:].T@K@V[kk,:]*1/t[jj]
 
-            assembler = lambda vec: local_assembler(i,j,vec,3)
+            xi_1 = (V[6,:].T@R@V[0,:])/(V[0,:].T@R@V[1,:])
+            xi_2 = (V[6,:].T@R@V[1,:])/(V[0,:].T@R@V[1,:])
 
-            matrix[meshToVec(i,j),:] += assembler(-T[1,:])
+            T[0,:,:] = compute_T(omega,xi_1,xi_2)
 
-            matrix[meshToVec(i,j-1),:] += assembler(T[1,:]-T[0,:])
+            omega  = np.zeros((2,3,7))
+            V = compute_triangle_normals(2,interface,centers,nodes[i,j])
+            t = [V[0,:].T@R@V[1,:],V[2,:].T@R@V[3,:],V[4,:].T@R@V[5,:]]
+            for ii in range(2):
+                for jj in range(3):
+                    for kk in range(7):
+                        if ii == 0:
+                            omega[ii,jj,kk] = n[2,:].T@K@V[kk,:]*1/t[jj]
+                        else:
+                            omega[ii,jj,kk] = n[1,:].T@K@V[kk,:]*1/t[jj]
 
-            matrix[meshToVec(i-1,j-1),:] += assembler(T[0,:])
+            xi_1 = (V[6,:].T@R@V[0,:])/(V[0,:].T@R@V[1,:])
+            xi_2 = (V[6,:].T@R@V[1,:])/(V[0,:].T@R@V[1,:])
 
+            T[2,:,:] = compute_T(omega,xi_1,xi_2)
 
+            index = [meshToVec(i-1,j-1),meshToVec(i-1,j),meshToVec(i,j),meshToVec(i,j-1)]
+            assembler = lambda vec,center: local_assembler(i,j,vec,center)
+            for jj in range(len(index)):
+                sgn =( -1 if jj == 2 or jj == 3 else 1)
+                t,choice = choose_triangle(T,jj)
+                matrix[index[jj],:] += assembler(t*sgn,choice)
+                matrix[index[(jj+1)%4],:] += assembler(-t*sgn,choice)
 
 
 
