@@ -92,8 +92,9 @@ class Mesh:
         segs2 = segs1.transpose(1,0,2)
         plt.gca().add_collection(LineCollection(segs1))
         plt.gca().add_collection(LineCollection(segs2))
-        plt.quiver(*self.midpoints[1,1,0,:],self.normals[1,1,0,0],self.normals[1,1,0,1])
-        plt.quiver(*self.midpoints[1,1,1,:],self.normals[1,1,1,0],self.normals[1,1,1,1])
+        # plt.quiver(*self.midpoints[1,1,0,:],self.normals[1,1,0,0],self.normals[1,1,0,1])
+        # plt.quiver(*self.midpoints[1,1,1,:],self.normals[1,1,1,0],self.normals[1,1,1,1])
+        plt.savefig('perturbed_grid_aspect_0.2_mesh.pdf')
 
         plt.show()
 

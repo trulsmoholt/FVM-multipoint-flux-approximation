@@ -1,5 +1,7 @@
 import numpy as np
+from scipy.sparse import csr_matrix,lil_matrix
 from mesh import Mesh
+import time
 def compute_matrix(mesh,K):
     nodes = mesh.nodes
     cell_centers = mesh.cell_centers
@@ -13,13 +15,13 @@ def compute_matrix(mesh,K):
 
     meshToVec = mesh.meshToVec
     vecToMesh = mesh.vecToMesh
-    matrix = np.zeros((num_unknowns,num_unknowns))
+    matrix = lil_matrix((num_unknowns,num_unknowns))
 
     R = np.array([[0,1],[-1,0]])
 
     T = np.zeros((4,2,3))
 
-    def local_assembler(j,i,vec,start):
+    def local_assembler(j,i,vec,start, matrix_handle,index):
         global_vec = np.zeros(num_unknowns)
 
         indexes = [meshToVec(j-1,i-1),meshToVec(j-1,i),meshToVec(j,i),meshToVec(j,i-1)]
@@ -27,9 +29,9 @@ def compute_matrix(mesh,K):
 
         for ii,jj in zip(range(start,start+2),range(2)):
 
-            global_vec[indexes[ii%4]] = vec[jj]
+            matrix_handle[index,indexes[ii%4]] += vec[jj]
 
-        global_vec[indexes[(start-1)%4]] = vec[2]
+        matrix_handle[index,indexes[(start-1)%4]] += vec[2]
         return global_vec
 
     def compute_triangle_normals(start_index, interface, centers, node_midpoint):
@@ -123,18 +125,25 @@ def compute_matrix(mesh,K):
             k_loc[2] = k_global[i,j]
 
             k_loc[3] = k_global[i,j-1]
+            if i==3 or j==3:
+                start = time.time()
 
-            for ii in range(4):
-                T[ii,:,:] = compute_T(ii)
+                for ii in range(4):
+                    T[ii,:,:] = compute_T(ii)
+                end = time.time()
+                print('compute T',end-start)
 
-            index = [meshToVec(i-1,j-1),meshToVec(i-1,j),meshToVec(i,j),meshToVec(i,j-1)]
-            assembler = lambda vec,center: local_assembler(i,j,vec,center)
-            for jj in range(len(index)):
-                sgn =( -1 if jj == 2 or jj == 3 else 1)
-                t,choice = choose_triangle(T,jj)
-                matrix[index[jj],:] += assembler(t*sgn,choice)
-                matrix[index[(jj+1)%4],:] += assembler(-t*sgn,choice)
+                start = time.time()
 
+                index = [meshToVec(i-1,j-1),meshToVec(i-1,j),meshToVec(i,j),meshToVec(i,j-1)]
+                assembler = lambda vec,center,matrix,cell_index: local_assembler(i,j,vec,center,matrix, cell_index)
+                for jj in range(len(index)):
+                    sgn =( -1 if jj == 2 or jj == 3 else 1)
+                    t,choice = choose_triangle(T,jj)
+                    assembler(t*sgn,choice,matrix,index[jj])
+                    assembler(-t*sgn,choice,matrix,index[(jj+1)%4])
+                end = time.time()
+                print('assemble matrix ',end-start)
 
 
 
@@ -169,6 +178,7 @@ def compute_vector(mesh,f,boundary):
             vector[meshToVec(i,j)] += mesh.volumes[i,j]*f(cell_centers[i,j,0],cell_centers[i,j,1])
     return vector
 
+#if __name__=='__main__':
 
 
 

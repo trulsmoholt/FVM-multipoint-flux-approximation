@@ -1,6 +1,7 @@
 import numpy as np
 
 
+from scipy.sparse import csr_matrix,lil_matrix
 
 from mesh import Mesh
 
@@ -18,18 +19,17 @@ def compute_matrix(mesh,K):
 
     meshToVec = mesh.meshToVec
     vecToMesh = mesh.vecToMesh
-    matrix = np.zeros((num_unknowns,num_unknowns))
+    matrix = lil_matrix((num_unknowns,num_unknowns))
 
 
-    def local_assembler(j,i,vec):
+    def local_assembler(j,i,vec,matrix_handle,index):
         global_vec = np.zeros(num_unknowns)
         
-        global_vec[meshToVec(j-1,i-1)] = vec[0]
-        global_vec[meshToVec(j-1,i)] = vec[1]
-        global_vec[meshToVec(j,i)] = vec[2]
-        global_vec[meshToVec(j,i-1)] = vec[3]
+        matrix_handle[index,meshToVec(j-1,i-1)] += vec[0]
+        matrix_handle[index,meshToVec(j-1,i)] += vec[1]
+        matrix_handle[index,meshToVec(j,i)] += vec[2]
+        matrix_handle[index,meshToVec(j,i-1)] += vec[3]
 
-        return global_vec
 
     for i in range(1,nodes.shape[0]-1):
         for j in range(1,nodes.shape[1]-1):
@@ -115,15 +115,15 @@ def compute_matrix(mesh,K):
                         [0                        ,0                         ,0                       ,omega[3,3,0]+omega[3,3,1]]])
             T = C@np.linalg.inv(A)@B-D
 
-            assembler = lambda vec: local_assembler(i,j,vec)
+            assembler = lambda vec,matrix,cell_index: local_assembler(i,j,vec,matrix,cell_index)
 
-            matrix[meshToVec(i-1,j-1),:] += assembler(T[0,:]+T[3,:])
+            assembler(T[0,:]+T[3,:],matrix,meshToVec(i-1,j-1))
 
-            matrix[meshToVec(i-1,j),:] += assembler( T[1,:] + -T[0,:])
+            assembler( T[1,:] + -T[0,:],matrix,meshToVec(i-1,j))
 
-            matrix[meshToVec(i,j),:] += assembler(-T[2,:]-T[1,:])
+            assembler(-T[2,:]-T[1,:],matrix,meshToVec(i,j))
 
-            matrix[meshToVec(i,j-1),:] += assembler( -T[3,:]+T[2,:])
+            assembler( -T[3,:]+T[2,:],matrix,meshToVec(i,j-1))
 
     for i in range(cell_centers.shape[0]):
         for j in range(cell_centers.shape[1]):
