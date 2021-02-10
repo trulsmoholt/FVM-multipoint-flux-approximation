@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import random
 from scipy.sparse import csr_matrix,lil_matrix
 from scipy.sparse.linalg import spsolve
+import time as time
+
 
 K = np.array([[1,0],[0,1]])
 transform = np.array([[1,0],[0.1,1]])
@@ -55,10 +57,18 @@ def compute_error(mesh,u,u_fabric):
 def run_test(K,source,u_fabric,n):
     T = random_perturbation(0.5/(50*n))
     mesh = Mesh(n,50*n,T)
+    start = time.time()
     A = compute_matrix(mesh,K)
+    end = time.time()
+    print('matrix assembly l-scheme: ',end-start)
     f = compute_vector(mesh,source,u_fabric)
     A  = csr_matrix(A,dtype = float)
+    start = time.time()
+
     u = spsolve(A,f)
+    end = time.time()
+    print('linear solver l-scheme: ',end-start)
+
     return compute_error(mesh,u,u_fabric)
 
 result = np.zeros((4,5))

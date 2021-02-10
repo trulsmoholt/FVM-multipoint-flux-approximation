@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.sparse import csr_matrix,lil_matrix
 from mesh import Mesh
-import time
+from numba import jit
 def compute_matrix(mesh,K):
     nodes = mesh.nodes
     cell_centers = mesh.cell_centers
@@ -20,6 +20,7 @@ def compute_matrix(mesh,K):
     R = np.array([[0,1],[-1,0]])
 
     T = np.zeros((4,2,3))
+    omega  = np.zeros((2,3,7))
 
     def local_assembler(j,i,vec,start, matrix_handle,index):
         global_vec = np.zeros(num_unknowns)
@@ -46,19 +47,22 @@ def compute_matrix(mesh,K):
         V[6,:] = R@(nodes[i,j]-centers[start_index%4])
 
         return V
-    
-    def compute_T(center):
-        omega  = np.zeros((2,3,7))
-        V = compute_triangle_normals(center,interface,centers,nodes[i,j])
-        t = [V[0,:].T@R@V[1,:],V[2,:].T@R@V[3,:],V[4,:].T@R@V[5,:]]
-
+        
+    @jit #halfes the running time for matrix assembly, but no tensor permability
+    def compute_omega(n,K,V,t,omega,center):
         for ii in range(2):
             for jj in range(3):
                 for kk in range(7):
                     if ii == 0:
-                        omega[ii,jj,kk] = n[center,:].T@K@V[kk,:]*1/t[jj]
+                        omega[ii,jj,kk] = n[center,:].T.dot(V[kk,:]*1/t[jj])
                     else:
-                        omega[ii,jj,kk] = n[center-1,:].T@K@V[kk,:]*1/t[jj]
+                        omega[ii,jj,kk] = n[center-1,:].T.dot(V[kk,:]*1/t[jj])
+        
+    def compute_T(center):
+        V = compute_triangle_normals(center,interface,centers,nodes[i,j])
+        t = [V[0,:].T@R@V[1,:],V[2,:].T@R@V[3,:],V[4,:].T@R@V[5,:]]
+
+        compute_omega(n,K,V,t,omega,center)
 
 
         xi_1 = (V[6,:].T@R@V[0,:])/(V[0,:].T@R@V[1,:])
@@ -87,7 +91,6 @@ def compute_matrix(mesh,K):
 
     for i in range(1,nodes.shape[0]-1):
         for j in range(1,nodes.shape[1]-1):
-            omega = np.zeros((4,4,2))
             interface = np.zeros((4,2))
             centers = np.zeros((4,2))
             n = np.zeros((4,2))
@@ -125,25 +128,18 @@ def compute_matrix(mesh,K):
             k_loc[2] = k_global[i,j]
 
             k_loc[3] = k_global[i,j-1]
-            if i==3 or j==3:
-                start = time.time()
 
-                for ii in range(4):
-                    T[ii,:,:] = compute_T(ii)
-                end = time.time()
-                print('compute T',end-start)
+            for ii in range(4):
+                T[ii,:,:] = compute_T(ii)
 
-                start = time.time()
 
-                index = [meshToVec(i-1,j-1),meshToVec(i-1,j),meshToVec(i,j),meshToVec(i,j-1)]
-                assembler = lambda vec,center,matrix,cell_index: local_assembler(i,j,vec,center,matrix, cell_index)
-                for jj in range(len(index)):
-                    sgn =( -1 if jj == 2 or jj == 3 else 1)
-                    t,choice = choose_triangle(T,jj)
-                    assembler(t*sgn,choice,matrix,index[jj])
-                    assembler(-t*sgn,choice,matrix,index[(jj+1)%4])
-                end = time.time()
-                print('assemble matrix ',end-start)
+            index = [meshToVec(i-1,j-1),meshToVec(i-1,j),meshToVec(i,j),meshToVec(i,j-1)]
+            assembler = lambda vec,center,matrix,cell_index: local_assembler(i,j,vec,center,matrix, cell_index)
+            for jj in range(len(index)):
+                sgn =( -1 if jj == 2 or jj == 3 else 1)
+                t,choice = choose_triangle(T,jj)
+                assembler(t*sgn,choice,matrix,index[jj])
+                assembler(-t*sgn,choice,matrix,index[(jj+1)%4])
 
 
 
@@ -178,7 +174,6 @@ def compute_vector(mesh,f,boundary):
             vector[meshToVec(i,j)] += mesh.volumes[i,j]*f(cell_centers[i,j,0],cell_centers[i,j,1])
     return vector
 
-#if __name__=='__main__':
 
 
 
