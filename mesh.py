@@ -51,7 +51,6 @@ class Mesh:
         num_nodes_x = nodes.shape[1]
         h = float(nodes[1,0,1]-nodes[0,0,1])
         V = np.zeros((num_nodes_y-1,num_nodes_x - 1))
-        total = 0
         for i in range(num_nodes_y-1):
             for j in range(num_nodes_x-1):
                 base = nodes[i,j+1,0]-nodes[i,j,0]
@@ -82,7 +81,6 @@ class Mesh:
         return normals
         
         
-        return
 
     def plot(self):
         plt.scatter(self.cell_centers[:,:,0],self.cell_centers[:,:,1])
@@ -94,7 +92,7 @@ class Mesh:
         plt.gca().add_collection(LineCollection(segs2))
         # plt.quiver(*self.midpoints[1,1,0,:],self.normals[1,1,0,0],self.normals[1,1,0,1])
         # plt.quiver(*self.midpoints[1,1,1,:],self.normals[1,1,1,0],self.normals[1,1,1,1])
-        plt.savefig('perturbed_grid_aspect_0.2_mesh.pdf')
+        #plt.savefig('perturbed_grid_aspect_0.2_mesh.pdf')
 
         plt.show()
 
@@ -125,6 +123,5 @@ class Mesh:
         plt.colorbar()
         fig.suptitle(text)
 
-        plt.show()
 
     
