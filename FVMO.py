@@ -6,7 +6,7 @@ from scipy.sparse import csr_matrix,lil_matrix
 from mesh import Mesh
 
 
-def compute_matrix(mesh,K):
+def compute_matrix(mesh,K,matrix,compute_flux=None):
     nodes = mesh.nodes
     cell_centers = mesh.cell_centers
     k_global = np.ones((cell_centers.shape[0],cell_centers.shape[1]))
@@ -18,9 +18,9 @@ def compute_matrix(mesh,K):
     num_unknowns = cell_centers.shape[1]*cell_centers.shape[0]
 
     meshToVec = mesh.meshToVec
-    vecToMesh = mesh.vecToMesh
-    matrix = lil_matrix((num_unknowns,num_unknowns))
-
+    if compute_flux is not None:
+        flux_matrix_x = compute_flux['x']
+        flux_matrix_y = compute_flux['y']
 
     def local_assembler(j,i,vec,matrix_handle,index):
         global_vec = np.zeros(num_unknowns)
@@ -125,13 +125,21 @@ def compute_matrix(mesh,K):
 
             assembler( -T[3,:]+T[2,:],matrix,meshToVec(i,j-1))
 
+            if compute_flux is not None:
+                assembler(T[0,:],flux_matrix_x,meshToVec(i-1,j-1))
+                assembler(T[2,:],flux_matrix_x,meshToVec(i,j-1))
+                assembler(T[3,:],flux_matrix_y,meshToVec(i-1,j-1))
+                assembler(T[1,:],flux_matrix_y,meshToVec(i-1,j))
+
+
     for i in range(cell_centers.shape[0]):
         for j in range(cell_centers.shape[1]):
             if (i==0) or (i==ny-2) or (j==0) or (j==nx-2):
                 matrix[meshToVec(i,j),:] = 0
 
                 matrix[meshToVec(i,j),meshToVec(i,j)] = 1
-
+    if compute_flux is not None:
+        return (matrix, flux_matrix_x, flux_matrix_y)
     return matrix
 
 

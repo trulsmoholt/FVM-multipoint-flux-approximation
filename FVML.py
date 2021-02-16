@@ -3,7 +3,7 @@ from scipy.sparse import csr_matrix,lil_matrix
 from mesh import Mesh
 from numba import jit
 
-def compute_matrix(mesh,K):
+def compute_matrix(mesh,K,matrix,compute_flux = None):
     nodes = mesh.nodes
     cell_centers = mesh.cell_centers
     k_global = np.ones((cell_centers.shape[0],cell_centers.shape[1]))
@@ -15,14 +15,20 @@ def compute_matrix(mesh,K):
     num_unknowns = cell_centers.shape[1]*cell_centers.shape[0]
 
     meshToVec = mesh.meshToVec
-    vecToMesh = mesh.vecToMesh
-    matrix = lil_matrix((num_unknowns,num_unknowns))
+    if compute_flux is not None:
+        flux_matrix_x = compute_flux['x']
+        flux_matrix_y = compute_flux['y']
 
     R = np.array([[0,1],[-1,0]])
 
     T = np.zeros((4,2,3))
     omega  = np.zeros((2,3,7))
     V = np.zeros((7,2))
+
+    interface = np.zeros((4,2))
+    centers = np.zeros((4,2))
+    n = np.zeros((4,2))
+    k_loc = np.zeros((4))
 
     def local_assembler(j,i,vec,start, matrix_handle,index):
         global_vec = np.zeros(num_unknowns)
@@ -58,7 +64,7 @@ def compute_matrix(mesh,K):
         
     def compute_T(center):
         compute_triangle_normals(center,interface,centers,nodes[i,j],V)
-        t = [V[0,:].T@R@V[1,:],V[2,:].T@R@V[3,:],V[4,:].T@R@V[5,:]]
+        t = np.array([V[0,:].T@R@V[1,:],V[2,:].T@R@V[3,:],V[4,:].T@R@V[5,:]])
 
         compute_omega(n,K,V,t,omega,center)
 
@@ -89,10 +95,7 @@ def compute_matrix(mesh,K):
 
     for i in range(1,nodes.shape[0]-1):
         for j in range(1,nodes.shape[1]-1):
-            interface = np.zeros((4,2))
-            centers = np.zeros((4,2))
-            n = np.zeros((4,2))
-            k_loc = np.zeros((4))
+
 
             #D
             v = nodes[i,j-1]-nodes[i,j]
@@ -133,19 +136,32 @@ def compute_matrix(mesh,K):
 
             index = [meshToVec(i-1,j-1),meshToVec(i-1,j),meshToVec(i,j),meshToVec(i,j-1)]
             assembler = lambda vec,center,matrix,cell_index: local_assembler(i,j,vec,center,matrix, cell_index)
+
+            m = {0:0,1:1,2:3,3:0}
+
             for jj in range(len(index)):
                 sgn =( -1 if jj == 2 or jj == 3 else 1)
                 t,choice = choose_triangle(T,jj)
                 assembler(t*sgn,choice,matrix,index[jj])
                 assembler(-t*sgn,choice,matrix,index[(jj+1)%4])
+                
+                # for computing flux over edges later
+                if compute_flux is not None:
+                    if jj%2==0:
+                        assembler(t,choice,flux_matrix_x,index[m[jj]])
+                    else:
+                        assembler(t,choice,flux_matrix_y,index[m[jj]])
+
+                
 
     for i in range(cell_centers.shape[0]):
         for j in range(cell_centers.shape[1]):
             if (i==0) or (i==ny-2) or (j==0) or (j==nx-2):
                 matrix[meshToVec(i,j),:] = 0
-
                 matrix[meshToVec(i,j),meshToVec(i,j)] = 1
 
+    if compute_flux is not None:
+        return (matrix, flux_matrix_x, flux_matrix_y)
     return matrix
 
 

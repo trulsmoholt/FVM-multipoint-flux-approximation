@@ -122,6 +122,8 @@ class Mesh:
         plt.contourf(self.cell_centers[:,:,0],self.cell_centers[:,:,1],vec_center,20,)
         plt.colorbar()
         fig.suptitle(text)
+        plt.show()
+
 
 
     

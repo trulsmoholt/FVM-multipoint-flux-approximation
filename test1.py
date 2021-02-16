@@ -3,6 +3,7 @@ from mesh import Mesh
 from FVMO import compute_matrix as compute_matrix_o
 from FVML import compute_matrix, compute_vector
 from differentiation import gradient, divergence
+from flux_error import compute_flux_error
 import sympy as sym
 import math
 import matplotlib.pyplot as plt
@@ -37,8 +38,10 @@ def random_perturbation(h):
     return lambda x,y: random.uniform(0,h)*random.choice([-1,1]) + x + 0.32*y
 
 mesh = Mesh(8,8*5,random_perturbation(0.5/(8*5)))
-A = compute_matrix(mesh,K=np.array([[1,0],[0,1]]))
-print(A-A.T)
+num_unknowns = mesh.cell_centers.shape[0]*mesh.cell_centers.shape[1]
+matrix = lil_matrix((num_unknowns,num_unknowns))
+flux_matrix = {'x': lil_matrix((num_unknowns,num_unknowns)),'y':lil_matrix((num_unknowns,num_unknowns))}
+A = compute_matrix(mesh,K,matrix,flux_matrix)
 mesh.plot()
 
 def compute_error(mesh,u,u_fabric):
@@ -56,14 +59,17 @@ def compute_error(mesh,u,u_fabric):
     maxerr = np.max(np.abs(u-u_fabric_vec))
     return (L2err,maxerr)
 
-def run_test(K,source,u_fabric,n):
+def run_test_l(K,source,u_fabric,n):
     T = random_perturbation(0.5/(n))
-    mesh = Mesh(n,25*n,T)
+    mesh = Mesh(n,5*n,T)
     start = time.time()
-    A = compute_matrix(mesh,K)
+    num_unknowns = mesh.cell_centers.shape[0]*mesh.cell_centers.shape[1]
+    matrix = lil_matrix((num_unknowns,num_unknowns))
+    flux_matrix = {'x': lil_matrix((num_unknowns,num_unknowns)),'y':lil_matrix((num_unknowns,num_unknowns))}
+    A,fx,fy = compute_matrix(mesh,K,matrix,flux_matrix)
     end = time.time()
     print('matrix assembly l-scheme: ',end-start)
-    f = compute_vector(mesh,source,u_fabric)
+    f = compute_vector(mesh,source,sym.lambdify([x,y],u_fabric))
     A  = csr_matrix(A,dtype = float)
     start = time.time()
 
@@ -71,45 +77,80 @@ def run_test(K,source,u_fabric,n):
     end = time.time()
     print('linear solver l-scheme: ',end-start)
 
-    return compute_error(mesh,u,u_fabric)
+    fx = csr_matrix(fx,dtype=float)
+    fy = csr_matrix(fy,dtype=float)
+    l2err_flux,maxerr_flux = compute_flux_error(fx.dot(u),fy.dot(u),u_fabric,mesh)
+    l2err,maxerr = compute_error(mesh,u,sym.lambdify([x,y],u_fabric))
+    return (l2err,maxerr,l2err_flux,maxerr_flux)
 
-result = np.zeros((5,5))
-for i in range(3,8):
-    result[i-3,0] = math.log(2**i,2)
-    l2err, maxerr = run_test(K,source,u_lam,2**i)
-    result[i-3,1]=math.log(l2err,2)
-    result[i-3,2]=math.log(maxerr,2) 
+result_pressure = np.zeros((3,5))
+result_flux = np.zeros((3,5))
 
-def run_test(K,source,u_fabric,n):
+for i in range(3,6):
+    result_pressure[i-3,0] = math.log(2**i,2)
+    result_flux[i-3,0] = math.log(2**i,2)
+    l2err, maxerr,l2err_flux,maxerr_flux = run_test_l(K,source,u_fabric,2**i)
+    result_pressure[i-3,1]=math.log(l2err,2)
+    result_pressure[i-3,2]=math.log(maxerr,2) 
+    result_flux[i-3,1] = math.log(l2err_flux,2)
+    result_flux[i-3,2] = math.log(maxerr_flux,2) 
+
+def run_test_o(K,source,u_fabric,n):
     T = random_perturbation(0.5/(n))
-    mesh = Mesh(n,25*n,T)
+    mesh = Mesh(n,5*n,T)
 
-    A = compute_matrix_o(mesh,K)
+    num_unknowns = mesh.cell_centers.shape[0]*mesh.cell_centers.shape[1]
+    matrix = lil_matrix((num_unknowns,num_unknowns))
+    flux_matrix = {'x': lil_matrix((num_unknowns,num_unknowns)),'y':lil_matrix((num_unknowns,num_unknowns))}
+    A,fx,fy = compute_matrix_o(mesh,K,matrix,flux_matrix)
     A = csr_matrix(A,dtype=float)
-    f = compute_vector(mesh,source,u_fabric)
+    f = compute_vector(mesh,source,sym.lambdify([x,y],u_fabric))
     u = spsolve(A,f)
-    return compute_error(mesh,u,u_fabric)
 
-for i in range(3,8):
-    l2err, maxerr = run_test(K,source,u_lam,2**i)
-    result[i-3,3]=math.log(l2err,2)
-    result[i-3,4]=math.log(maxerr,2) 
+    fx = csr_matrix(fx,dtype=float)
+    fy = csr_matrix(fy,dtype=float)
+    l2err_flux,maxerr_flux = compute_flux_error(fx.dot(u),fy.dot(u),u_fabric,mesh)
+    l2err,maxerr = compute_error(mesh,u,sym.lambdify([x,y],u_fabric))
+    return (l2err,maxerr,l2err_flux,maxerr_flux)
 
+for i in range(3,6):
+    l2err, maxerr,l2err_flux,maxerr_flux = run_test_o(K,source,u_fabric,2**i)
+    result_pressure[i-3,3]=math.log(l2err,2)
+    result_pressure[i-3,4]=math.log(maxerr,2) 
+    result_flux[i-3,3] = math.log(l2err_flux,2)
+    result_flux[i-3,4] = math.log(maxerr_flux,2)
 
 
 ax = plt.subplot(1,1,1)
-p1, = ax.plot(result[:,0],result[:,1],'--')
+p1, = ax.plot(result_pressure[:,0],result_pressure[:,1],'--')
 p1.set_label('L-method $L_2$')
-p2, = ax.plot(result[:,0],result[:,2],'o-')
+p2, = ax.plot(result_pressure[:,0],result_pressure[:,2],'o-')
 p2.set_label('L-method $max$')
-p3, = ax.plot(result[:,0],result[:,3])
+p3, = ax.plot(result_pressure[:,0],result_pressure[:,3])
 p3.set_label('O-method $L_2$')
-p4,=ax.plot(result[:,0],result[:,4],'x-')
+p4,=ax.plot(result_pressure[:,0],result_pressure[:,4],'x-')
 p4.set_label('O-method $max$')
 ax.legend()
 plt.grid()
 plt.xlabel('$log_2 n$')
 plt.ylabel('$log_2 e$')
-plt.savefig('perturbed_grid_aspect_1d25_extra_perturbed.pdf')
-
+plt.savefig('perturbed_grid_aspect_1d5_extra_perturbed_1.pdf')
 plt.show()
+
+
+ax = plt.subplot(1,1,1)
+p1, = ax.plot(result_pressure[:,0],result_flux[:,1],'--')
+p1.set_label('L-method $L_2$')
+p2, = ax.plot(result_pressure[:,0],result_flux[:,2],'o-')
+p2.set_label('L-method $max$')
+p3, = ax.plot(result_pressure[:,0],result_flux[:,3])
+p3.set_label('O-method $L_2$')
+p4,=ax.plot(result_pressure[:,0],result_flux[:,4],'x-')
+p4.set_label('O-method $max$')
+ax.legend()
+plt.grid()
+plt.xlabel('$log_2 n$')
+plt.ylabel('$log_2 e$')
+plt.savefig('perturbed_grid_aspect_1d5_extra_perturbed_flux_1.pdf')
+plt.show()
+
