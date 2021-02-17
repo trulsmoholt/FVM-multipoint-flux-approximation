@@ -22,11 +22,16 @@ class Mesh:
         self.midpoints = self.__compute_interface_midpoints(self.nodes)
         self.normals = self.__compute_normals(self.nodes,self.midpoints)
 
-    def __perturb(self,nodes, P):
-        for y,row in enumerate(nodes):
-            transform = lambda x: P(x,y/(self.num_nodes_y-1))
-            T = np.vectorize(transform)
-            nodes[y,:,0] = T(row[:,0])
+    # def __perturb(self,nodes, P):
+    #     for y,row in enumerate(nodes):
+    #         transform = lambda x: P(x,y/(self.num_nodes_y-1))
+    #         T = np.vectorize(transform)
+    #         nodes[y,:,0] = T(row[:,0])
+    #     return nodes
+    def __perturb(self,nodes,P):
+        for i in range(nodes.shape[0]):
+            for j in range(nodes.shape[1]):
+                nodes[i,j,:] = P(nodes[i,j,:])
         return nodes
 
     def __compute_cell_centers(self,nodes):
@@ -53,9 +58,12 @@ class Mesh:
         V = np.zeros((num_nodes_y-1,num_nodes_x - 1))
         for i in range(num_nodes_y-1):
             for j in range(num_nodes_x-1):
-                base = nodes[i,j+1,0]-nodes[i,j,0]
-                top = nodes[i+1,j+1,0]-nodes[i+1,j,0]
-                V[i,j] = h*(base+top)*0.5
+                # base = nodes[i,j+1,0]-nodes[i,j,0]
+                # top = nodes[i+1,j+1,0]-nodes[i+1,j,0]
+                # V[i,j] = h*(base+top)*0.5
+                shoelace1 = nodes[i,j,0]*nodes[i,j+1,1]+nodes[i,j+1,0]*nodes[i+1,j+1,1]+nodes[i+1,j+1,0]*nodes[i+1,j,1]+nodes[i+1,j,0]*nodes[i,j,1]
+                shoelace2 = nodes[i,j,1]*nodes[i,j+1,0]+nodes[i,j+1,1]*nodes[i+1,j+1,0]+nodes[i+1,j+1,1]*nodes[i+1,j,0]+nodes[i+1,j,1]*nodes[i,j,0]
+                V[i,j] = 0.5*abs(shoelace1-shoelace2)
         return V
 
     def __compute_interface_midpoints(self,nodes):

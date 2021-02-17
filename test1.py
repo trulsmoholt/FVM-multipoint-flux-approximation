@@ -15,8 +15,8 @@ import time as time
 
 K = np.array([[1,0],[0,1]])
 transform = np.array([[1,0],[0.1,1]])
-nx = 6
-ny = 6
+nx = 12
+ny = 12
 x = sym.Symbol('x')
 y = sym.Symbol('y')
 u_fabric = sym.cos(y*math.pi)*sym.cosh(x*math.pi)
@@ -30,19 +30,24 @@ u_lam = sym.lambdify([x,y],u_fabric)
 
 
 #T = lambda x,y: (0.9*y+0.1)*math.sqrt(x) + (0.9-0.9*y)*x**2
-T = lambda x,y: x + 0.3*y
+T = lambda p: np.array([p[0]*0.1*p[1]+p[0],p[1]+p[1]*0.1*p[0]])
+# T = lambda x,y: x+0.1*y*x
 
 
 
 def random_perturbation(h):
-    return lambda x,y: random.uniform(0,h)*random.choice([-1,1]) + x + 0.32*y
+    return lambda p: np.array([random.uniform(0,h)*random.choice([-1,1]) + p[0] + 0.32*p[1],random.uniform(0,h)*random.choice([-1,1]) + p[1]])
 
-mesh = Mesh(8,8*5,random_perturbation(0.5/(8*5)))
+mesh = Mesh(12,12,random_perturbation(1/30))
 num_unknowns = mesh.cell_centers.shape[0]*mesh.cell_centers.shape[1]
 matrix = lil_matrix((num_unknowns,num_unknowns))
 flux_matrix = {'x': lil_matrix((num_unknowns,num_unknowns)),'y':lil_matrix((num_unknowns,num_unknowns))}
-A = compute_matrix(mesh,K,matrix,flux_matrix)
+A,fx,fy = compute_matrix(mesh,K,matrix,flux_matrix)
+A = csr_matrix(A,dtype=float)
+f = compute_vector(mesh,source,u_lam)
+u = spsolve(A,f)
 mesh.plot()
+mesh.plot_vector(u)
 
 def compute_error(mesh,u,u_fabric):
     cx = mesh.cell_centers.shape[1]
