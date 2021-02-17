@@ -96,7 +96,6 @@ def compute_matrix(mesh,K,matrix,compute_flux = None):
     for i in range(1,nodes.shape[0]-1):
         for j in range(1,nodes.shape[1]-1):
 
-
             #D
             v = nodes[i,j-1]-nodes[i,j]
             interface[3,:] = nodes[i,j] + 0.5*(v)
