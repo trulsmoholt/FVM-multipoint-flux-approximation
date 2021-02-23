@@ -30,15 +30,15 @@ u_lam = sym.lambdify([x,y],u_fabric)
 
 
 #T = lambda x,y: (0.9*y+0.1)*math.sqrt(x) + (0.9-0.9*y)*x**2
-T = lambda p: np.array([p[0]*0.1*p[1]+p[0],p[1]+p[1]*0.1*p[0]])
-# T = lambda x,y: x+0.1*y*x
+#T = lambda p: np.array([p[0]*0.1*p[1]+p[0],p[1]+p[1]*0.1*p[0]])
+T = lambda p: np.array([p[0],p[1]])
 
 
 
 def random_perturbation(h):
-    return lambda p: np.array([random.uniform(0,h)*random.choice([-1,1]) + p[0] + 0.32*p[1],random.uniform(0,h)*random.choice([-1,1]) + p[1]])
+    return lambda p: np.array([random.uniform(0,h)*random.choice([-1,1]) + p[0] - 0.32*p[1],random.uniform(0,h)*random.choice([-1,1]) + p[1]])
 
-mesh = Mesh(12,12,random_perturbation(1/30))
+mesh = Mesh(6,6,random_perturbation(1/20))
 num_unknowns = mesh.cell_centers.shape[0]*mesh.cell_centers.shape[1]
 matrix = lil_matrix((num_unknowns,num_unknowns))
 flux_matrix = {'x': lil_matrix((num_unknowns,num_unknowns)),'y':lil_matrix((num_unknowns,num_unknowns))}

@@ -56,7 +56,6 @@ def compute_flux_error(fx,fy,u_fabric,mesh: Mesh):
         a,b = vecToMesh(i)
         volumes_y[i] = volumes[a,b]+volumes[a-1,b]
 
-
     l2_error = math.sqrt((volumes_x.T@error_x+volumes_y.T@error_y)/(np.ones(volumes_x.shape).T@volumes_x+np.ones(volumes_y.shape).T@volumes_y))
 
     return l2_error,max(max_error_x,max_error_y)
