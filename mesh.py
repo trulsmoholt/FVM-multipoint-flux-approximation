@@ -13,7 +13,7 @@ class Mesh:
         self.num_nodes_y = num_nodes_y
 
         bottom_left = (0,0)
-        top_right = (1,1)
+        top_right = (1,0.5)
         nodes_x, nodes_y = np.meshgrid(np.linspace(bottom_left[0],top_right[0],num=num_nodes_x),np.linspace(bottom_left[1],top_right[1],num=num_nodes_y))
         nodes = np.stack([nodes_x,nodes_y],axis=2)
 
@@ -163,7 +163,7 @@ class Mesh:
         #plt.savefig('perturbed_grid_aspect_0.2_mesh.pdf')
         points = np.reshape(self.cell_centers,(self.cell_centers.shape[0]*self.cell_centers.shape[1],2))
         plt.triplot(points[:,0], points[:,1], self.elements,color = 'green',linestyle = 'dashed')
-        plt.savefig('perturbed_grid_and_triangularization_aspect_1d5.pdf')
+        # plt.savefig('figs/trapezoidal_mesh_1d5.pdf')
 
         plt.show()
 
@@ -182,6 +182,8 @@ class Mesh:
         plt.contourf(self.cell_centers[:,:,0],self.cell_centers[:,:,1],vec_center,20,)
         plt.colorbar()
         fig.suptitle(text)
+        plt.savefig('Pressure.pdf')
+
         plt.show()
     def plot_funtion(self,fun,text = 'text'):
         vec_center = np.zeros((self.cell_centers.shape[0],self.cell_centers.shape[1]))
