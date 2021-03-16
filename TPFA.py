@@ -33,6 +33,7 @@ def compute_matrix(mesh,K,matrix,compute_flux=None):
 
     for i in range(1,nodes.shape[0]-1):
         for j in range(1,nodes.shape[1]-1):
+            omega = np.zeros((4,4,2))
             interface = np.zeros((4,2))
             centers = np.zeros((4,2))
             n = np.zeros((4,2))
@@ -71,34 +72,67 @@ def compute_matrix(mesh,K,matrix,compute_flux=None):
 
             k_loc[3] = k_global[i,j-1]
 
+            V = np.zeros((4,2,2))
 
+            for jj in range(4):
+                i_2 = interface[jj-1]
+                i_1 = interface[jj]
+
+                X = np.array([i_1-centers[jj],i_2-centers[jj]])
+                V[jj,:,:] = np.linalg.inv(X)
+                
+
+            for ii in range(4):
+                for jj in range(4):
+                    for kk in range(2):
+                        omega[ii,jj,kk] = -n[ii,:].T@K@V[jj,:,kk]
+            
             #print(omega)
+
+            A = np.array([[omega[0,0,0]-omega[0,1,1],0        ,0                          ,         0      ],
+                        [       0  ,omega[1,1,0]-omega[1,2,1]  ,         0   ,0                          ],
+                        [0                        ,         0      ,omega[2,2,0]-omega[2,3,1]  ,      0   ],
+                        [     0       ,0                          ,        0    ,+omega[3,3,0]-omega[3,0,1]  ]])
             
 
-            grad_u_1 = (centers[1]-centers[0])/np.linalg.norm(centers[1]-centers[0])**2
-            grad_u_2 = (centers[2]-centers[1])/np.linalg.norm(centers[2]-centers[1])**2
-            grad_u_3 = (centers[3]-centers[2])/np.linalg.norm(centers[3]-centers[2])**2
-            grad_u_4 = (centers[0]-centers[3])/np.linalg.norm(centers[0]-centers[3])**2
-            T = np.array([[-n[0,:].T@K@grad_u_1,n[0,:].T@K@grad_u_1,0,0],
-                          [0    ,-n[1,:].T@K@grad_u_2,n[1,:].T@K@grad_u_2,0],
-                            [0  ,0  ,-n[2,:].T@K@grad_u_3,n[2,:].T@K@grad_u_3,],
-                            [n[3,:].T@K@grad_u_4,0,0,-n[3,:].T@K@grad_u_4]])
+
+            B = np.array([[omega[0,0,0] ,-omega[0,1,1] ,0                          ,0                          ],
+                        [0                         ,omega[1,1,0]  ,-omega[1,2,1] ,0                          ],
+                        [0                         ,0                          ,omega[2,2,0] ,-omega[2,3,1] ],
+                        [-omega[3,0,1],0                          ,0                          ,omega[3,3,0]  ]])
+
+
+
+            C = np.array([[omega[0,0,0],0           ,0           ,0],
+                        [0,omega[1,1,0],0           ,0           ],
+                        [0           ,0,omega[2,2,0],0           ],
+                        [0           ,0           ,0,omega[3,3,0]]])       
+
+
+            D = np.array([[omega[0,0,0],0                        ,0                        ,0                        ],
+                        [0                        ,omega[1,1,0],0                        ,0                        ],
+                        [0                        ,0                        ,omega[2,2,0],0                        ],
+                        [0                        ,0                         ,0                       ,omega[3,3,0]]])
+
+
+
+            T = C@np.linalg.inv(A)@B-D
 
             assembler = lambda vec,matrix,cell_index: local_assembler(i,j,vec,matrix,cell_index)
 
-            assembler(-T[0,:]-T[3,:],matrix,meshToVec(i-1,j-1))
+            assembler(T[0,:]+T[3,:],matrix,meshToVec(i-1,j-1))
 
-            assembler( -T[1,:]  +T[0,:],matrix,meshToVec(i-1,j))
+            assembler( T[1,:] + -T[0,:],matrix,meshToVec(i-1,j))
 
-            assembler(T[2,:]+T[1,:],matrix,meshToVec(i,j))
+            assembler(-T[2,:]-T[1,:],matrix,meshToVec(i,j))
 
-            assembler( +T[3,:]-T[2,:],matrix,meshToVec(i,j-1))
+            assembler( -T[3,:]+T[2,:],matrix,meshToVec(i,j-1))
 
             if compute_flux is not None:
-                assembler(-T[0,:],flux_matrix_x,meshToVec(i-1,j-1))
-                assembler(-T[2,:],flux_matrix_x,meshToVec(i,j-1))
-                assembler(-T[3,:],flux_matrix_y,meshToVec(i-1,j-1))
-                assembler(-T[1,:],flux_matrix_y,meshToVec(i-1,j))
+                assembler(T[0,:],flux_matrix_x,meshToVec(i-1,j-1))
+                assembler(T[2,:],flux_matrix_x,meshToVec(i,j-1))
+                assembler(T[3,:],flux_matrix_y,meshToVec(i-1,j-1))
+                assembler(T[1,:],flux_matrix_y,meshToVec(i-1,j))
 
 
     for i in range(cell_centers.shape[0]):
@@ -145,7 +179,7 @@ if __name__=='__main__':
     source = sym.lambdify([x,y],source)
     u_lam = sym.lambdify([x,y],u_fabric)
 
-    mesh = Mesh(6,6,lambda p: np.array([p[0] ,p[1]]))
+    mesh = Mesh(6,6,lambda p: np.array([p[0]+0.5*p[1] ,p[1]]))
     mesh.plot()
     AT = np.zeros((mesh.num_unknowns,mesh.num_unknowns))
     flux_matrixT = {'x': np.zeros((mesh.num_unknowns,mesh.num_unknowns)),'y':np.zeros((mesh.num_unknowns,mesh.num_unknowns))}
@@ -159,7 +193,7 @@ if __name__=='__main__':
     ut = np.linalg.solve(AT,f)
     mesh.plot_vector(ut,'TPFA')
     f = compute_vector(mesh,source,u_lam)
-    uo = np.linalg.solve(AT,f)
+    uo = np.linalg.solve(AO,f)
     mesh.plot_vector(uo,'MPFA-O')
     mesh.plot_vector(ut-uo,'difference')
     mesh.plot_funtion(u_lam,'exact solution')
