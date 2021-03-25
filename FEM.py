@@ -1,17 +1,30 @@
 import numpy as np
 import math
 import sympy as sym
-def compute_matrix(mesh,K,matrix,compute_flux=None):
+def compute_matrix(mesh,K,matrix,k_global = None,flux_matrix=None):
     elements = mesh.elements.astype(int)
     coordinates = np.reshape(mesh.cell_centers,(mesh.num_unknowns,2),order='C')
     boundary_elements_dirichlet = mesh.boundary_elements
-
+    if k_global is None:
+        k_global = np.ones((mesh.cell_centers.shape[0],mesh.cell_centers.shape[1]))
+    k_global = np.ravel(k_global)
     shape_grad = np.array([np.matrix([[1],[0]]),np.matrix([[0],[1]]),np.matrix([[-1],[-1]])])
-
+    if flux_matrix is not None:
+        flux_matrix_x = flux_matrix['x']
+        flux_matrix_y = flux_matrix['y']
     def local_to_reference_map(ele_num):
         mat_coords = np.array([[coordinates[elements[ele_num,0]][0],coordinates[elements[ele_num,0]][1],1],[coordinates[elements[ele_num,1]][0],coordinates[elements[ele_num,1]][1],1],[coordinates[elements[ele_num,2]][0],coordinates[elements[ele_num,2]][1],1]])
         b1 = np.array([[1],[0],[0]])
         b2 = np.array([[0],[1],[0]])
+        a1 = np.linalg.solve(mat_coords,b1)
+        a2 = np.linalg.solve(mat_coords,b2)
+        J = np.matrix([[a1[0][0],a1[1][0]],[a2[0][0],a2[1][0]]])
+        c = np.matrix([[a1[2][0]],[a2[2][0]]])
+        return [J,c]
+    def reference_to_local_map(ele_num):
+        mat_coords = np.array([[1,0,1],[0,1,1],[0,0,1]])
+        b1 = np.array([[coordinates[elements[ele_num][0]][0]],[coordinates[elements[ele_num][1]][0]],[coordinates[elements[ele_num][2]][0]]])
+        b2 = np.array([[coordinates[elements[ele_num][0]][1]],[coordinates[elements[ele_num][1]][1]],[coordinates[elements[ele_num][2]][1]]])
         a1 = np.linalg.solve(mat_coords,b1)
         a2 = np.linalg.solve(mat_coords,b2)
         J = np.matrix([[a1[0][0],a1[1][0]],[a2[0][0],a2[1][0]]])
@@ -22,18 +35,26 @@ def compute_matrix(mesh,K,matrix,compute_flux=None):
     for e in range(len(elements)):
         # extract element information
         [J,c] = local_to_reference_map(e)
+        [M,d] = reference_to_local_map(e)
         transform = J.dot(J.transpose()) #J*J^t; derivative transformation
         jac = np.linalg.det(J) #Determinant of tranformation matrix = inverse of area of local elements
         #Local assembler
         for j in range(3):
+            if flux_matrix is not None:
+                flux = M.dot(shape_grad[j])
+                # flux_matrix_x[e,elements[e,j]] += flux[0]
+                # flux_matrix_y[e,elements[e,j]] += flux[1]
             for i in range(3):
-                matrix[elements[e][i],elements[e][j]] += 0.5*shape_grad[i].transpose().dot(transform.dot(shape_grad[j]))/jac
+                x_r = J@np.array([[1/3],[1/3]])
+                K_int = 0.5*k_global[elements[e][2]]*(1-x_r[0]-x_r[1])+k_global[elements[e][0]]*x_r[0]+k_global[elements[e][1]]*x_r[1]
+                matrix[elements[e][i],elements[e][j]] += K_int*0.5*shape_grad[i].transpose().dot(transform.dot(shape_grad[j]))/jac
     for e in range(len(boundary_elements_dirichlet)):
         matrix[boundary_elements_dirichlet[e][0],:]=0
         matrix[boundary_elements_dirichlet[e][0],boundary_elements_dirichlet[e][0]]=1
         matrix[boundary_elements_dirichlet[e][1],:]=0
         matrix[boundary_elements_dirichlet[e][1],boundary_elements_dirichlet[e][1]]=1
-
+    if flux_matrix is not None:
+        return (matrix,flux_matrix_x,flux_matrix_y)
     return matrix
 
 def compute_vector(mesh,f,boundary):

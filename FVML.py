@@ -3,21 +3,21 @@ from scipy.sparse import csr_matrix,lil_matrix
 from mesh import Mesh
 from numba import jit
 
-def compute_matrix(mesh,K,matrix,compute_flux = None):
+def compute_matrix(mesh,K,matrix,k_global=None,flux_matrix = None):
     nodes = mesh.nodes
     cell_centers = mesh.cell_centers
-    k_global = np.ones((cell_centers.shape[0],cell_centers.shape[1]))
+    if k_global is None:
+        k_global = np.ones((cell_centers.shape[0],cell_centers.shape[1]))
 
-    k_global = np.ones((cell_centers.shape[0],cell_centers.shape[1]))
     nx = nodes.shape[1]
     ny = nodes.shape[0]
 
     num_unknowns = cell_centers.shape[1]*cell_centers.shape[0]
 
     meshToVec = mesh.meshToVec
-    if compute_flux is not None:
-        flux_matrix_x = compute_flux['x']
-        flux_matrix_y = compute_flux['y']
+    if flux_matrix is not None:
+        flux_matrix_x = flux_matrix['x']
+        flux_matrix_y = flux_matrix['y']
 
     R = np.array([[0,1],[-1,0]])
 
@@ -52,8 +52,8 @@ def compute_matrix(mesh,K,matrix,compute_flux = None):
         V[5,:] = -R@(interface[(start_index-1)%4,:]-centers[(start_index-1)%4])
         V[6,:] = R@(nodes[i,j]-centers[start_index%4])
 
-    @jit #halfes the running time for matrix assembly, but no tensor permability
-    def compute_omega(n,K,V,t,omega,center):
+    # @jit(fastmath=True) #halfes the running time for matrix assembly, but no tensor permability
+    def compute_omega(n,K,V,t,omega,center,k_loc):
         for ii in range(2):
             for jj in range(3):
                 for kk in range(7):
@@ -62,11 +62,11 @@ def compute_matrix(mesh,K,matrix,compute_flux = None):
                     else:
                         omega[ii,jj,kk] = n[center-1,:].T.dot(V[kk,:]*1/t[jj])
         
-    def compute_T(center):
+    def compute_T(center,k_loc):
         compute_triangle_normals(center,interface,centers,nodes[i,j],V)
         t = np.array([V[0,:].T@R@V[1,:],V[2,:].T@R@V[3,:],V[4,:].T@R@V[5,:]])
 
-        compute_omega(n,K,V,t,omega,center)
+        compute_omega(n,K,V,t,omega,center,k_loc)
 
         xi_1 = (V[6,:].T@R@V[0,:])/(V[0,:].T@R@V[1,:])
         xi_2 = (V[6,:].T@R@V[1,:])/(V[0,:].T@R@V[1,:])
@@ -130,7 +130,7 @@ def compute_matrix(mesh,K,matrix,compute_flux = None):
             k_loc[3] = k_global[i,j-1]
 
             for ii in range(4):
-                T[ii,:,:] = compute_T(ii)
+                T[ii,:,:] = compute_T(ii,k_loc)
 
 
             index = [meshToVec(i-1,j-1),meshToVec(i-1,j),meshToVec(i,j),meshToVec(i,j-1)]
@@ -145,7 +145,7 @@ def compute_matrix(mesh,K,matrix,compute_flux = None):
                 assembler(-t*sgn,choice,matrix,index[(jj+1)%4])
                 
                 # for computing flux over edges later
-                if compute_flux is not None:
+                if flux_matrix is not None:
                     if jj%2==0:
                         assembler(t,choice,flux_matrix_x,index[m[jj]])
                     else:
@@ -159,9 +159,10 @@ def compute_matrix(mesh,K,matrix,compute_flux = None):
                 matrix[meshToVec(i,j),:] = 0
                 matrix[meshToVec(i,j),meshToVec(i,j)] = 1
 
-    if compute_flux is not None:
+    if flux_matrix is not None:
         return (matrix, flux_matrix_x, flux_matrix_y)
     return matrix
+
 
 
 
@@ -172,9 +173,7 @@ def compute_vector(mesh,f,boundary):
     nx = nodes.shape[1]
     ny = nodes.shape[0]
     meshToVec = mesh.meshToVec
-    vecToMesh = mesh.vecToMesh
     vector = np.zeros(num_unknowns)
-    h_y = nodes[1,0,1]-nodes[0,0,1]
     for i in range(cell_centers.shape[0]):
         for j in range(cell_centers.shape[1]):
 
@@ -184,7 +183,26 @@ def compute_vector(mesh,f,boundary):
             vector[meshToVec(i,j)] += mesh.volumes[i,j]*f(cell_centers[i,j,0],cell_centers[i,j,1])
     return vector
 
+if __name__=='__main__':
+    import sympy as sym
+    from differentiation import gradient,divergence
+    import math
+    x = sym.Symbol('x')
+    y = sym.Symbol('y')
+    K = np.array([[1,0],[0,1]])
+    u_fabric = sym.cos(y*math.pi)*sym.cosh(x*math.pi)
+    source = -divergence(gradient(u_fabric,[x,y]),[x,y],permability_tensor=K)
+    source = sym.lambdify([x,y],source)
+    u_lam = sym.lambdify([x,y],u_fabric)
 
-
-
+    mesh = Mesh(20,20,lambda p: np.array([p[0] ,p[1]]))
+    mesh.plot()
+    A = np.zeros((mesh.num_unknowns,mesh.num_unknowns))
+    flux_matrix = {'x': np.zeros((mesh.num_unknowns,mesh.num_unknowns)),'y':np.zeros((mesh.num_unknowns,mesh.num_unknowns))}
+    permability = np.ones((mesh.cell_centers.shape[0],mesh.cell_centers.shape[1]))
+    permability[5:15,5:15] = 0.1
+    A,fx,fy = compute_matrix(mesh,np.array([[1,0],[0,1]]),A,permability,flux_matrix)
+    f = compute_vector(mesh,source,u_lam)
+    mesh.plot_vector(np.linalg.solve(A,f))
+    mesh.plot_funtion(u_lam,'exact solution')
 

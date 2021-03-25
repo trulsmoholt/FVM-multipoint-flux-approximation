@@ -13,7 +13,7 @@ class Mesh:
         self.num_nodes_y = num_nodes_y
 
         bottom_left = (0,0)
-        top_right = (1,0.5)
+        top_right = (1,1)
         nodes_x, nodes_y = np.meshgrid(np.linspace(bottom_left[0],top_right[0],num=num_nodes_x),np.linspace(bottom_left[1],top_right[1],num=num_nodes_y))
         nodes = np.stack([nodes_x,nodes_y],axis=2)
 
@@ -162,6 +162,8 @@ class Mesh:
         # plt.quiver(*self.midpoints[1,1,1,:],self.normals[1,1,1,0],self.normals[1,1,1,1])
         #plt.savefig('perturbed_grid_aspect_0.2_mesh.pdf')
         points = np.reshape(self.cell_centers,(self.cell_centers.shape[0]*self.cell_centers.shape[1],2))
+
+
         plt.triplot(points[:,0], points[:,1], self.elements,color = 'green',linestyle = 'dashed')
         # plt.savefig('figs/trapezoidal_mesh_1d5.pdf')
 
@@ -185,6 +187,26 @@ class Mesh:
         plt.savefig('Pressure.pdf')
 
         plt.show()
+    def plot_interaction(self):
+        #plot nodes
+        plt.scatter(self.nodes[:,:,0], self.nodes[:,:,1])
+        segs1 = np.stack((self.nodes[:,:,0],self.nodes[:,:,1]), axis=2)
+        segs2 = segs1.transpose(1,0,2)
+        plt.gca().add_collection(LineCollection(segs1))
+        plt.gca().add_collection(LineCollection(segs2))
+
+        centers = self.cell_centers
+        points = np.zeros((2*centers.shape[0]-1,centers.shape[1],2))
+        for i in range(centers.shape[1]-1):
+            points[2*i,:,:] = centers[i,:,:]
+            points[2*i+1,:,:] = self.midpoints[i,:,0,:]
+        segs1 = np.stack((points[:,:,0],points[:,:,1]),axis=2)
+        segs2 = segs1.transpose(1,0,2)
+        plt.gca().add_collection(LineCollection(segs2,color='g',linestyle='dashed'))
+        plt.show()
+
+
+
     def plot_funtion(self,fun,text = 'text'):
         vec_center = np.zeros((self.cell_centers.shape[0],self.cell_centers.shape[1]))
         num_unknowns = self.cell_centers.shape[1]*self.cell_centers.shape[0]
@@ -196,6 +218,15 @@ class Mesh:
         plt.colorbar()
         fig.suptitle(text)
         plt.show()
+    
+    def interpolate(self,fun):
+        u = np.zeros(self.num_unknowns)
+        for i in range(self.cell_centers.shape[0]):
+            for j in range(self.cell_centers.shape[1]):
+                x = self.cell_centers[i,j,0]
+                y = self.cell_centers[i,j,1]
+                u[self.meshToVec(i,j)] = fun(x,y)
+        return u
 
 
 

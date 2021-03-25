@@ -6,25 +6,21 @@ from scipy.sparse import csr_matrix,lil_matrix
 from mesh import Mesh
 
 
-def compute_matrix(mesh,K,matrix,compute_flux=None):
+def compute_matrix(mesh,K,matrix,k_global=None,flux_matrix=None):
     nodes = mesh.nodes
     cell_centers = mesh.cell_centers
-    k_global = np.ones((cell_centers.shape[0],cell_centers.shape[1]))
-
-    k_global = np.ones((cell_centers.shape[0],cell_centers.shape[1]))
+    if k_global is None:
+        k_global = np.ones((cell_centers.shape[0],cell_centers.shape[1]))
     nx = nodes.shape[1]
     ny = nodes.shape[0]
 
-    num_unknowns = cell_centers.shape[1]*cell_centers.shape[0]
 
     meshToVec = mesh.meshToVec
-    if compute_flux is not None:
-        flux_matrix_x = compute_flux['x']
-        flux_matrix_y = compute_flux['y']
+    if flux_matrix is not None:
+        flux_matrix_x = flux_matrix['x']
+        flux_matrix_y = flux_matrix['y']
 
-    def local_assembler(j,i,vec,matrix_handle,index):
-        global_vec = np.zeros(num_unknowns)
-        
+    def local_assembler(j,i,vec,matrix_handle,index):        
         matrix_handle[index,meshToVec(j-1,i-1)] += vec[0]
         matrix_handle[index,meshToVec(j-1,i)] += vec[1]
         matrix_handle[index,meshToVec(j,i)] += vec[2]
@@ -85,7 +81,7 @@ def compute_matrix(mesh,K,matrix,compute_flux=None):
             for ii in range(4):
                 for jj in range(4):
                     for kk in range(2):
-                        omega[ii,jj,kk] = -n[ii,:].T@K@V[jj,:,kk]
+                        omega[ii,jj,kk] = -n[ii,:].T@K@V[jj,:,kk]*k_loc[jj]
             
             #print(omega)
 
@@ -125,7 +121,7 @@ def compute_matrix(mesh,K,matrix,compute_flux=None):
 
             assembler( -T[3,:]+T[2,:],matrix,meshToVec(i,j-1))
 
-            if compute_flux is not None:
+            if flux_matrix is not None:
                 assembler(T[0,:],flux_matrix_x,meshToVec(i-1,j-1))
                 assembler(T[2,:],flux_matrix_x,meshToVec(i,j-1))
                 assembler(T[3,:],flux_matrix_y,meshToVec(i-1,j-1))
@@ -138,7 +134,7 @@ def compute_matrix(mesh,K,matrix,compute_flux=None):
                 matrix[meshToVec(i,j),:] = 0
 
                 matrix[meshToVec(i,j),meshToVec(i,j)] = 1
-    if compute_flux is not None:
+    if flux_matrix is not None:
         return (matrix, flux_matrix_x, flux_matrix_y)
     return matrix
 
@@ -179,7 +175,9 @@ if __name__=='__main__':
     mesh.plot()
     A = np.zeros((mesh.num_unknowns,mesh.num_unknowns))
     flux_matrix = {'x': np.zeros((mesh.num_unknowns,mesh.num_unknowns)),'y':np.zeros((mesh.num_unknowns,mesh.num_unknowns))}
-    A,fx,fy = compute_matrix(mesh,np.array([[1,0],[0,1]]),A,flux_matrix)
+    permability = np.ones((mesh.cell_centers.shape[0],mesh.cell_centers.shape[1]))
+    permability[5:15,5:15] = 0.1
+    A,fx,fy = compute_matrix(mesh,np.array([[1,0],[0,1]]),A,permability,flux_matrix)
     f = compute_vector(mesh,source,u_lam)
     mesh.plot_vector(np.linalg.solve(A,f))
     mesh.plot_funtion(u_lam,'exact solution')
