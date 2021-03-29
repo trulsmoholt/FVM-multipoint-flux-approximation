@@ -38,6 +38,7 @@ gravitation = gravitation(mesh)
 
 
 
+
 def compute_error(mesh,u,u_fabric):
     cx = mesh.cell_centers.shape[1]
     cy = mesh.cell_centers.shape[0]
