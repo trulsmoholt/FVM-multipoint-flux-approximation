@@ -177,6 +177,7 @@ if __name__=='__main__':
     flux_matrix = {'x': np.zeros((mesh.num_unknowns,mesh.num_unknowns)),'y':np.zeros((mesh.num_unknowns,mesh.num_unknowns))}
     permability = np.ones((mesh.cell_centers.shape[0],mesh.cell_centers.shape[1]))
     permability[5:15,5:15] = 0.1
+    print(permability)
     A,fx,fy = compute_matrix(mesh,np.array([[1,0],[0,1]]),A,permability,flux_matrix)
     f = compute_vector(mesh,source,u_lam)
     mesh.plot_vector(np.linalg.solve(A,f))

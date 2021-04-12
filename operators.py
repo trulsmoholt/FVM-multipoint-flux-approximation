@@ -1,6 +1,6 @@
 import numpy as np
 
-def mass(mesh):
+def mass_matrix(mesh):
     mass = np.diag(np.ravel(mesh.volumes,order='F'))
     for i in range(mesh.cell_centers.shape[0]):
         for j in range(mesh.cell_centers.shape[1]):
@@ -8,7 +8,7 @@ def mass(mesh):
                 mass[mesh.meshToVec(i,j),:] = 0
     return mass
 
-def gravitation(mesh):
+def gravitation_matrix(mesh):
     matrix = np.zeros((mesh.num_unknowns,mesh.num_unknowns))
     nodes = mesh.nodes
     normals = mesh.normals
@@ -16,7 +16,6 @@ def gravitation(mesh):
     meshToVec = mesh.meshToVec
     for i in range(1,nodes.shape[0]-2):
         for j in range(1,nodes.shape[1]-2):
-            print(mesh.midpoints[i,j,:])
             flux_e = 2*normals[i,j,0,:].T@gravity
             flux_s = 2*normals[i,j,1,:].T@gravity
             flux_w = 2*normals[i,j+1,0,:].T@gravity

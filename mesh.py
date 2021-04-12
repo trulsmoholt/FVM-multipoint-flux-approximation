@@ -8,12 +8,17 @@ import random
 
 
 class Mesh:
-    def __init__(self,num_nodes_x,num_nodes_y,P):
+    def __init__(self,num_nodes_x,num_nodes_y,P,centers_at_bc = False):
         self.num_nodes_x = num_nodes_x
         self.num_nodes_y = num_nodes_y
-
-        bottom_left = (0,0)
-        top_right = (1,1)
+        if centers_at_bc:
+            h_x = 1/(num_nodes_x-2)
+            h_y = 1/(num_nodes_y-2)
+            bottom_left = (-h_x/2,-h_y/2)
+            top_right = (1+h_x/2,1+h_y/2)
+        else:
+            bottom_left = (0,0)
+            top_right = (1,1)
         nodes_x, nodes_y = np.meshgrid(np.linspace(bottom_left[0],top_right[0],num=num_nodes_x),np.linspace(bottom_left[1],top_right[1],num=num_nodes_y))
         nodes = np.stack([nodes_x,nodes_y],axis=2)
 
@@ -23,7 +28,7 @@ class Mesh:
         self.midpoints = self.__compute_interface_midpoints(self.nodes)
         self.normals = self.__compute_normals(self.nodes,self.midpoints)
         self.num_unknowns  = self.cell_centers.shape[0]*self.cell_centers.shape[1]
-        self.elements,self.boundary_elements = self.__compute_triangulation(self.cell_centers,delaunay= False)
+        #self.elements,self.boundary_elements = self.__compute_triangulation(self.cell_centers,delaunay= False)
 
 
     # def __perturb(self,nodes, P):

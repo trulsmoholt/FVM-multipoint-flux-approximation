@@ -52,21 +52,22 @@ def compute_matrix(mesh,K,matrix,k_global=None,flux_matrix = None):
         V[5,:] = -R@(interface[(start_index-1)%4,:]-centers[(start_index-1)%4])
         V[6,:] = R@(nodes[i,j]-centers[start_index%4])
 
+
     # @jit(fastmath=True) #halfes the running time for matrix assembly, but no tensor permability
-    def compute_omega(n,K,V,t,omega,center,k_loc):
+    def compute_omega(n,K,V,t,omega,center,k_loc_rel):
         for ii in range(2):
             for jj in range(3):
                 for kk in range(7):
                     if ii == 0:
-                        omega[ii,jj,kk] = n[center,:].T.dot(V[kk,:]*1/t[jj])
+                        omega[ii,jj,kk] = n[center,:].T.dot(V[kk,:]*1/t[jj])*k_loc_rel[jj]
                     else:
-                        omega[ii,jj,kk] = n[center-1,:].T.dot(V[kk,:]*1/t[jj])
+                        omega[ii,jj,kk] = n[center-1,:].T.dot(V[kk,:]*1/t[jj])*k_loc_rel[jj]
         
     def compute_T(center,k_loc):
         compute_triangle_normals(center,interface,centers,nodes[i,j],V)
         t = np.array([V[0,:].T@R@V[1,:],V[2,:].T@R@V[3,:],V[4,:].T@R@V[5,:]])
-
-        compute_omega(n,K,V,t,omega,center,k_loc)
+        k_loc_rel = np.array([k_loc[center],k_loc[(center+1)%4],k_loc[(center-1)%4]])
+        compute_omega(n,K,V,t,omega,center,k_loc_rel)
 
         xi_1 = (V[6,:].T@R@V[0,:])/(V[0,:].T@R@V[1,:])
         xi_2 = (V[6,:].T@R@V[1,:])/(V[0,:].T@R@V[1,:])
@@ -200,7 +201,7 @@ if __name__=='__main__':
     A = np.zeros((mesh.num_unknowns,mesh.num_unknowns))
     flux_matrix = {'x': np.zeros((mesh.num_unknowns,mesh.num_unknowns)),'y':np.zeros((mesh.num_unknowns,mesh.num_unknowns))}
     permability = np.ones((mesh.cell_centers.shape[0],mesh.cell_centers.shape[1]))
-    permability[5:15,5:15] = 0.1
+    permability[2:4,16:19] = 0.1
     A,fx,fy = compute_matrix(mesh,np.array([[1,0],[0,1]]),A,permability,flux_matrix)
     f = compute_vector(mesh,source,u_lam)
     mesh.plot_vector(np.linalg.solve(A,f))
