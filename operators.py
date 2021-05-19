@@ -1,15 +1,26 @@
 import numpy as np
+from scipy.sparse import csr_matrix,lil_matrix, diags
+from scipy.sparse.linalg import spsolve
 
-def mass_matrix(mesh):
-    mass = np.diag(np.ravel(mesh.volumes,order='F'))
+def mass_matrix(mesh, sparse = False):
+    if sparse:
+        mass = diags(np.ravel(mesh.volumes,order='F'),format='lil')
+    else:
+        mass = np.diag(np.ravel(mesh.volumes,order='F'))
     for i in range(mesh.cell_centers.shape[0]):
         for j in range(mesh.cell_centers.shape[1]):
             if (i==0) or (i==mesh.num_nodes_x-2) or (j==0) or (j==mesh.num_nodes_y-2):
                 mass[mesh.meshToVec(i,j),:] = 0
-    return mass
+    if sparse:
+        return csr_matrix(mass,dtype=float)
+    else:
+        return mass
 
-def gravitation_matrix(mesh):
-    matrix = np.zeros((mesh.num_unknowns,mesh.num_unknowns))
+def gravitation_matrix(mesh,sparse = False):
+    if sparse:
+        matrix = lil_matrix((mesh.num_unknowns,mesh.num_unknowns))
+    else:
+        matrix = np.zeros((mesh.num_unknowns,mesh.num_unknowns))
     nodes = mesh.nodes
     normals = mesh.normals
     gravity = np.array([0,1])
@@ -27,4 +38,7 @@ def gravitation_matrix(mesh):
             matrix[meshToVec(i,j),meshToVec(i+1,j)] -= flux_n
             if (i==0) or (i==nodes.shape[0]-2) or (j==0) or (j==nodes.shape[1]-2):
                 matrix[meshToVec(i,j),:] = 0
-    return matrix
+    if sparse:
+        return csr_matrix(matrix,dtype=float)
+    else:
+        return matrix

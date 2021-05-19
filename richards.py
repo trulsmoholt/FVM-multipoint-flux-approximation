@@ -2,8 +2,10 @@ import numpy as np
 import sympy as sym
 import math
 import random
+from scipy.sparse import csr_matrix,lil_matrix
+from scipy.sparse.linalg import spsolve
 
-from FVML import compute_matrix as stiffness, compute_vector
+from TPFA import compute_matrix as stiffness, compute_vector
 from mesh import Mesh
 from operators import gravitation_matrix, mass_matrix
 
@@ -17,14 +19,15 @@ def run_richards(timestep,num_nodes):
     y = sym.Symbol('y')
     t = sym.Symbol('t')
     p = sym.Symbol('p')
-    u_exact = sym.sin(math.pi*x)*sym.sin(math.pi*y)*t-11
-    # u_exact = t*x*y*(1-x)*(1-y)-1
+    u_exact = -0.1*sym.sin(math.pi*x)*sym.sin(math.pi*y)*t**2-1
+    # u_exact = -(t)**2*(x*y*(1-x)*(1-y))**2 - 1
     # u_exact = (t**2*sym.cos(y*math.pi)*sym.cosh(x*math.pi))/12-1
     K = p**2
     theta = 1/(1-p)
+    # theta = p
     f = sym.diff(theta.subs(p,u_exact),t)-divergence(gradient(u_exact ,[x,y]),[x,y],K.subs(p,u_exact))
     # f = sym.diff(u_exact,t)-divergence(gradient(u_exact ,[x,y]),[x,y])
-
+    
     f = sym.lambdify([x,y,t],f)
     u_exact = sym.lambdify([x,y,t],u_exact)
 
@@ -36,13 +39,16 @@ def run_richards(timestep,num_nodes):
     T = lambda p: np.array([p[0],p[1]])
     nx = num_nodes
     ny = num_nodes
-    mesh = Mesh(nx,ny,T)
+
+
+    mesh = Mesh(nx,ny,T,centers_at_bc=True)
+
     h = np.linalg.norm(mesh.nodes[1,1,:]-mesh.nodes[0,0,:])
     print('h ',h)
 
     #make mass and gravitation matrices
-    mass = mass_matrix(mesh)
-    gravitation = gravitation_matrix(mesh)
+    mass = mass_matrix(mesh,sparse=True)
+    #gravitation = gravitation_matrix(mesh)
 
 
     def compute_error(mesh,u,u_fabric):
@@ -64,13 +70,13 @@ def run_richards(timestep,num_nodes):
     tau = time_partition[1]-time_partition[0]
 
 
-    L = 3
-    TOL = 0.000005
+    L = 0.5
+    TOL = 0.000000005
 
     K = lambda x: x**2
 
     theta = lambda x: 1/(1-x)
-
+    # theta = lambda x:x
 
     u = mesh.interpolate(lambda x,y:u_exact(x,y,0)) #Initial condition
 
@@ -97,22 +103,35 @@ def run_richards(timestep,num_nodes):
     #     print(l2)
     #     print(m)
     for t in time_partition[1:]:
-        A = np.zeros((mesh.num_unknowns,mesh.num_unknowns))
-        permability = K(np.reshape(u.copy(),(mesh.cell_centers.shape[0],mesh.cell_centers.shape[1])))
-        rhs = tau*compute_vector(mesh,lambda x,y:f(x,y,t),lambda x,y:u_exact(x,y,t))+L*mass@u
-        lhs = tau*(stiffness(mesh,np.eye(2),A,k_global=permability))+L*mass
-        u_n_i = np.linalg.solve(lhs,rhs)
+        source = compute_vector(mesh,lambda x,y:f(x,y,t),lambda x,y:u_exact(x,y,t))
+        A = lil_matrix((mesh.num_unknowns,mesh.num_unknowns))
+        permability = K(np.reshape(u.copy(),(mesh.cell_centers.shape[0],mesh.cell_centers.shape[1]),order='F'))
+        # permability = np.ones((mesh.cell_centers.shape[0],mesh.cell_centers.shape[1]),order='F')
+        A = stiffness(mesh,np.eye(2),A,k_global=permability)
+        A = csr_matrix(A,dtype=float)
+        #A = np.zeros((mesh.num_unknowns,mesh.num_unknowns))
+        rhs = tau*source+L*mass@u
+        lhs = tau*A+L*mass
+        u_n_i = spsolve(lhs,rhs)
+        # u_n_i = np.reshape(u_n_i,(mesh.cell_centers.shape[0],mesh.cell_centers.shape[1]))
+        # u_n_i = np.ravel(u_n_i,order='F')
         u_n = u
         while np.linalg.norm(u_n_i-u_n)>TOL+TOL*np.linalg.norm(u_n):
             u_n = u_n_i
-            A = np.zeros((mesh.num_unknowns,mesh.num_unknowns))
-            permability = K(np.reshape(u_n.copy(),(mesh.cell_centers.shape[0],mesh.cell_centers.shape[1])))#new permability dependent on previous iteration
-            lhs = tau*(stiffness(mesh,np.eye(2),A,k_global=permability))+L*mass
-            rhs = -mass@theta(u_n)+mass@theta(u)+tau*compute_vector(mesh,lambda x,y:f(x,y,t),lambda x,y:u_exact(x,y,t))+L*mass@u_n
-            u_n_i = np.linalg.solve(lhs,rhs)
+            A = lil_matrix((mesh.num_unknowns,mesh.num_unknowns))
+            permability = K(np.reshape(u_n.copy(),(mesh.cell_centers.shape[0],mesh.cell_centers.shape[1]),order='F'))
+            # permability = np.ones((mesh.cell_centers.shape[0],mesh.cell_centers.shape[1]),order='F')
+
+            A = stiffness(mesh,np.eye(2),A,k_global=permability)
+            A = csr_matrix(A,dtype=float)
+            lhs = tau*A+L*mass
+            rhs = -mass@theta(u_n)+mass@theta(u)+tau*source+L*mass@u_n
+            u_n_i = spsolve(lhs,rhs)
+            # u_n_i = np.reshape(u_n_i,(mesh.cell_centers.shape[0],mesh.cell_centers.shape[1]))
+            # u_n_i = np.ravel(u_n_i,order='F')
         u = u_n_i
-        # mesh.plot_vector(theta(u),'numerical solution')
-        # mesh.plot_funtion(lambda x,y: theta(u_exact(x,y,t)),'exact solution')
+        # mesh.plot_vector(u,'numerical solution')
+        # mesh.plot_funtion(lambda x,y: u_exact(x,y,t),'exact solution')
         # e = u - mesh.interpolate(lambda x,y: u_exact(x,y,t))
         # mesh.plot_vector(e,'error')
         # print(t)
@@ -124,29 +143,36 @@ def run_richards(timestep,num_nodes):
        
 
 
-(l2,m) = run_richards(1/5,2+2)
+(l2,m) = run_richards(1/4,3+2)
 print('l2 ',l2, ' max ',m)
 old_l2 = l2
 old_m = m
-(l2,m) = run_richards(1/5,2+2**2)
+(l2,m) = run_richards(1/16,3+2**2)
 print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
 old_l2 = l2
 old_m = m
-(l2,m) = run_richards(1/5,2+2**3)
+(l2,m) = run_richards(1/64,3+2**3)
 print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
 old_l2 = l2
 old_m = m
-(l2,m) = run_richards(1/5,2+2**4)
+(l2,m) = run_richards(1/254,3+2**4)
 print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
 old_l2 = l2
 old_m = m
-(l2,m) = run_richards(1/5,2+2**5)
+(l2,m) = run_richards(1/1024,3+2**5)
 print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
 old_l2 = l2
 old_m = m
-(l2,m) = run_richards(1/5,2+2**6)
+(l2,m) = run_richards(1/(2)**12,3+2**6)
 print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
+old_l2 = l2
+old_m = m
+(l2,m) = run_richards(1/3,3+2**7)
+print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
+old_l2 = 2.0386157640339497e-05
 
+(l2,m) = run_richards(1/3,3+2**8)
+print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
 
 def run_heat(timestep,num_nodes):
     #Construct the data given a solution
@@ -154,7 +180,8 @@ def run_heat(timestep,num_nodes):
     x = sym.Symbol('x')
     y = sym.Symbol('y')
     t = sym.Symbol('t')
-    u_exact = sym.sin(math.pi*x)*sym.sin(math.pi*y)*t-1
+    u_exact = -0.1*sym.sin(math.pi*x)*sym.sin(math.pi*y)*t-1
+    # u_exact = -t*x*y*(1-x)*(1-y)
     f = sym.diff(u_exact,t)-divergence(gradient(u_exact ,[x,y]),[x,y])
     f = sym.lambdify([x,y,t],f)
     u_exact = sym.lambdify([x,y,t],u_exact)
@@ -168,6 +195,8 @@ def run_heat(timestep,num_nodes):
     nx = num_nodes
     ny = num_nodes
     mesh = Mesh(nx,ny,T,centers_at_bc=True)
+    h = np.linalg.norm(mesh.nodes[1,1,:]-mesh.nodes[0,0,:])
+    print('h ',h)
 
     #make mass and gravitation matrices
     mass = mass_matrix(mesh)
@@ -204,21 +233,29 @@ def run_heat(timestep,num_nodes):
         # mesh.plot_vector(e,'error')
     return compute_error(mesh,u,lambda x,y:u_exact(x,y,1))
 
-(l2,m) = run_heat(1/17,3+2)
+(l2,m) = run_heat(1/4,2+3)
 print('l2 ',l2, ' max ',m)
 old_l2 = l2
 old_m = m
-(l2,m) = run_heat(1/17,3*2+2)
+(l2,m) = run_heat(1/4,2**2+3)
 print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
 old_l2 = l2
 old_m = m
-(l2,m) = run_heat(1/17,3*4+2)
+(l2,m) = run_heat(1/4,2**3+3)
 print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
 old_l2 = l2
 old_m = m
-(l2,m) = run_heat(1/17**2,3*8+2)
+(l2,m) = run_heat(1/4,2**4+3)
 print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
 old_l2 = l2
 old_m = m
-(l2,m) = run_heat(1/17**2,3*16+2)
+(l2,m) = run_heat(1/4,2**5+3)
+print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
+old_l2 = l2
+old_m = m
+(l2,m) = run_heat(1/4,2**6+3)
+print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
+old_l2 = l2
+old_m = m
+(l2,m) = run_heat(1/4,2**7+3)
 print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)

@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.lib.function_base import vectorize
 from scipy.sparse import csr_matrix,lil_matrix
 from mesh import Mesh
 from numba import jit
@@ -108,6 +109,7 @@ def compute_matrix(mesh,K,matrix,k_global=None,flux_matrix = None):
             interface[0,:] = nodes[i,j] + 0.5*(v)
             n[0,:] = mesh.normals[i-1,j,0,:]
             centers[0,:] = cell_centers[i-1,j-1]
+
             #B
             v = nodes[i,j+1]-nodes[i,j]
             interface[1,:] = nodes[i,j] + 0.5*(v)
@@ -119,8 +121,6 @@ def compute_matrix(mesh,K,matrix,k_global=None,flux_matrix = None):
             interface[2,:] = nodes[i,j] + 0.5*(v)
             n[2,:] = mesh.normals[i,j,0,:]
             centers[2,:] = cell_centers[i,j]
-
-
 
             k_loc[0] = k_global[i-1,j-1]
 

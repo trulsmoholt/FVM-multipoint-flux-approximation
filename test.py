@@ -44,12 +44,12 @@ source = -divergence(gradient(u_fabric,[x,y]),[x,y],permability_tensor=K)
 source = sym.lambdify([x,y],source)
 u_lam = sym.lambdify([x,y],u_fabric)
 
-nx = 8
-ny = 8
-T = lambda p: np.array([-0.5*p[1]+p[0],p[1]])
-#T = lambda p: np.array([p[0],p[1]])
-
-mesh = Mesh(nx,ny,random_perturbation(1/(2*4*4),1))
+nx = 5
+ny = 5
+# T = lambda p: np.array([-0.5*p[1]+p[0],p[1]])
+T = lambda p: np.array([p[0]-0.5*p[1],p[1]])
+mesh = Mesh(nx,ny,T,centers_at_bc=True)
+# mesh = Mesh(nx,ny,random_perturbation(1/(2*4*4),1))
 A = np.zeros((mesh.num_unknowns,mesh.num_unknowns))
 A = compute_matrix_FEM(mesh,K,A)
 f = compute_vector_FEM(mesh,source,u_lam)
@@ -68,8 +68,8 @@ f = compute_vector_FEM(mesh,source,u_lam)
 
 
 start = 3
-end = 5
-aspect = 10
+end = 8
+aspect = 1
 result_pressure = np.zeros((end-start,9))
 result_flux = np.zeros((end-start,9))
 
@@ -105,11 +105,9 @@ for i in range(start,end):
     u = spsolve(A,f)
     u = np.reshape(u,(mesh.cell_centers.shape[0],mesh.cell_centers.shape[1]))
     u = np.ravel(u,order='F')
-    mesh.plot_vector(u.T,'FEM')
 
     l2err_flux,maxerr_flux = compute_flux_error(fx.dot(u),fy.dot(u),u_fabric,mesh)
     l2err,maxerr = compute_error(mesh,u,u_lam)
-    print(l2err)
     result_pressure[i-start,7] = math.log(l2err,2)
     result_pressure[i-start,8] = math.log(maxerr,2)
     result_flux[i-start,7] = math.log(l2err_flux,2)
@@ -143,7 +141,6 @@ for i in range(start,end):
     A = csr_matrix(A,dtype=float)
     f = compute_vector(mesh,source,u_lam)
     u = spsolve(A,f)
-    mesh.plot_vector(u.T,'TPFA')
 
     fx = csr_matrix(fx,dtype=float)
     fy = csr_matrix(fy,dtype=float)

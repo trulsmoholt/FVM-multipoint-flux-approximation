@@ -47,6 +47,8 @@ def compute_matrix(mesh,K,matrix,k_global = None,flux_matrix=None):
             for i in range(3):
                 x_r = M@np.array([[1/3],[1/3]])+d
                 K_int = k_global[elements[e][2]]*(1-x_r[0]-x_r[1])+k_global[elements[e][0]]*x_r[0]+k_global[elements[e][1]]*x_r[1]
+                # K_int = (k_global[elements[e][2]]+k_global[elements[e][0]]+k_global[elements[e][1]])/3
+                # K_int = 0.5*k_global[elements[e][j]]
                 matrix[elements[e][i],elements[e][j]] += K_int*0.5*shape_grad[i].transpose().dot(transform.dot(shape_grad[j]))/jac
     for e in range(len(boundary_elements_dirichlet)):
         matrix[boundary_elements_dirichlet[e][0],:]=0
