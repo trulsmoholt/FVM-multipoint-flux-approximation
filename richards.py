@@ -43,7 +43,7 @@ def run_richards(timestep,num_nodes):
 
     mesh = Mesh(nx,ny,T,centers_at_bc=True)
 
-    h = np.linalg.norm(mesh.nodes[1,1,:]-mesh.nodes[0,0,:])
+    h = mesh.max_h()
     print('h ',h)
 
     #make mass and gravitation matrices
@@ -143,36 +143,29 @@ def run_richards(timestep,num_nodes):
        
 
 
-(l2,m) = run_richards(1/4,3+2)
+(l2,m) = run_richards(1/4,3*2)
 print('l2 ',l2, ' max ',m)
 old_l2 = l2
 old_m = m
-(l2,m) = run_richards(1/16,3+2**2)
+(l2,m) = run_richards(1/16,3*2**2)
 print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
 old_l2 = l2
 old_m = m
-(l2,m) = run_richards(1/64,3+2**3)
+(l2,m) = run_richards(1/64,3*2**3)
 print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
 old_l2 = l2
 old_m = m
-(l2,m) = run_richards(1/254,3+2**4)
+(l2,m) = run_richards(1/254,3*2**4)
 print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
 old_l2 = l2
 old_m = m
-(l2,m) = run_richards(1/1024,3+2**5)
+(l2,m) = run_richards(1/1024,3*2**5)
 print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
 old_l2 = l2
 old_m = m
 (l2,m) = run_richards(1/(2)**12,3+2**6)
 print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
-old_l2 = l2
-old_m = m
-(l2,m) = run_richards(1/3,3+2**7)
-print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
-old_l2 = 2.0386157640339497e-05
 
-(l2,m) = run_richards(1/3,3+2**8)
-print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
 
 def run_heat(timestep,num_nodes):
     #Construct the data given a solution

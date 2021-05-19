@@ -28,7 +28,7 @@ class Mesh:
         self.midpoints = self.__compute_interface_midpoints(self.nodes)
         self.normals = self.__compute_normals(self.nodes,self.midpoints)
         self.num_unknowns  = self.cell_centers.shape[0]*self.cell_centers.shape[1]
-        #self.elements,self.boundary_elements = self.__compute_triangulation(self.cell_centers,delaunay= False)
+        self.elements,self.boundary_elements = self.__compute_triangulation(self.cell_centers,delaunay= False)
 
 
     # def __perturb(self,nodes, P):
@@ -152,7 +152,16 @@ class Mesh:
         elements = np.delete(elements,remove_list,0)
         return (elements,boundary_elements)
 
-        
+    def max_h(self):
+        m = 0
+        for i in range(self.nodes.shape[0]-1):
+            for j in range(self.nodes.shape[1]-1):
+                up = np.linalg.norm(self.nodes[i+1,j,:]-self.nodes[i,j,:])
+                right = np.linalg.norm(self.nodes[i,j+1,:]-self.nodes[i,j,:])
+                diag1 = np.linalg.norm(self.nodes[i+1,j+1,:]-self.nodes[i,j,:])
+                diag2 = np.linalg.norm(self.nodes[i+1,j,:]-self.nodes[i,j+1,:])
+                m = max((m,up,right,diag1,diag2))
+        return m
         
 
     def plot(self):
@@ -169,7 +178,7 @@ class Mesh:
         points = np.reshape(self.cell_centers,(self.cell_centers.shape[0]*self.cell_centers.shape[1],2))
 
 
-        plt.triplot(points[:,0], points[:,1], self.elements,color = 'green',linestyle = 'dashed')
+        #plt.triplot(points[:,0], points[:,1], self.elements,color = 'green',linestyle = 'dashed')
         # plt.savefig('figs/trapezoidal_mesh_1d5.pdf')
 
         plt.show()
