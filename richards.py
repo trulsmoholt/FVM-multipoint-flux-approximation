@@ -3,15 +3,16 @@ import sympy as sym
 import math
 import random
 from scipy.sparse import csr_matrix,lil_matrix
+import matplotlib.pyplot as plt
 from scipy.sparse.linalg import spsolve
 
-from TPFA import compute_matrix as stiffness, compute_vector
+from FVML import compute_matrix as stiffness, compute_vector
 from mesh import Mesh
 from operators import gravitation_matrix, mass_matrix
 
 from differentiation import gradient, divergence
 
-def run_richards(timestep,num_nodes):
+def run_richards(num_nodes):
 
     #Construct the data given a solution
     K = np.array([[1,0],[0,1]])
@@ -36,14 +37,15 @@ def run_richards(timestep,num_nodes):
     def random_perturbation(h,aspect):
         return lambda p: np.array([random.uniform(0,h)*random.choice([-1,1]) + p[0] - 0.5*p[1],(1/aspect)*random.uniform(0,h)*random.choice([-1,1]) + p[1]])
 
-    T = lambda p: np.array([p[0],p[1]])
+    T = lambda p: np.array([p[0]+0.5*p[1],p[1]])
     nx = num_nodes
     ny = num_nodes
 
 
-    mesh = Mesh(nx,ny,T,centers_at_bc=True)
+    mesh = Mesh(nx,ny,T,ghostboundary=True)
 
     h = mesh.max_h()
+    timestep = h**2 #cfl condition
     print('h ',h)
 
     #make mass and gravitation matrices
@@ -139,33 +141,20 @@ def run_richards(timestep,num_nodes):
         # print(l2)
         # print(m)
     
-    return compute_error(mesh,u,lambda x,y:u_exact(x,y,1))
-       
+    return ((h,timestep),compute_error(mesh,u,lambda x,y:u_exact(x,y,1)))
 
-
-(l2,m) = run_richards(1/4,3*2)
-print('l2 ',l2, ' max ',m)
-old_l2 = l2
-old_m = m
-(l2,m) = run_richards(1/16,3*2**2)
-print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
-old_l2 = l2
-old_m = m
-(l2,m) = run_richards(1/64,3*2**3)
-print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
-old_l2 = l2
-old_m = m
-(l2,m) = run_richards(1/254,3*2**4)
-print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
-old_l2 = l2
-old_m = m
-(l2,m) = run_richards(1/1024,3*2**5)
-print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
-old_l2 = l2
-old_m = m
-(l2,m) = run_richards(1/(2)**12,3+2**6)
-print('l2 ',l2, ' max ',m,'improvement',old_l2/l2)
-
+n = 4
+arr = np.zeros((n-1,3))
+for i in range(1,n):
+    num_nodes = 3*2**i
+    a,err = run_richards(num_nodes)
+    arr[i-1,:2] = np.array([math.log(1/a[0],2),math.log(err[0],2)])
+    if i>1:
+        arr[i-1,2] = (arr[i-1,1]-arr[i-2,1])/(arr[i-1,0]-arr[i-2,0])
+        print('convergence',arr[i-1,2])
+print(arr)
+plt.plot(arr[:,0],arr[:,1])
+plt.show()
 
 def run_heat(timestep,num_nodes):
     #Construct the data given a solution
@@ -187,7 +176,7 @@ def run_heat(timestep,num_nodes):
     T = lambda p: np.array([p[0],p[1]])
     nx = num_nodes
     ny = num_nodes
-    mesh = Mesh(nx,ny,T,centers_at_bc=True)
+    mesh = Mesh(nx,ny,T,ghostboundary=True)
     h = np.linalg.norm(mesh.nodes[1,1,:]-mesh.nodes[0,0,:])
     print('h ',h)
 

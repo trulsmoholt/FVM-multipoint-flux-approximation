@@ -8,18 +8,17 @@ import random
 
 
 class Mesh:
-    def __init__(self,num_nodes_x,num_nodes_y,P,centers_at_bc = False):
+    def __init__(self,num_nodes_x,num_nodes_y,P,ghostboundary = False):
         self.num_nodes_x = num_nodes_x
         self.num_nodes_y = num_nodes_y
-        if centers_at_bc:
-            h_x = 1/(num_nodes_x-2)
-            h_y = 1/(num_nodes_y-2)
-            bottom_left = (-h_x/2,-h_y/2)
-            top_right = (1+h_x/2,1+h_y/2)
+        bottom_left = (0,0)
+        top_right = (1,1)
+        if ghostboundary:
+            h_x = 1/(num_nodes_x-1)
+            h_y = 1/(num_nodes_y-1)
+            nodes_x, nodes_y = np.meshgrid(np.linspace(bottom_left[0]-h_x,top_right[0]+h_x,num=num_nodes_x+2),np.linspace(bottom_left[1]-h_y,top_right[1]+h_y,num=num_nodes_y+2))
         else:
-            bottom_left = (0,0)
-            top_right = (1,1)
-        nodes_x, nodes_y = np.meshgrid(np.linspace(bottom_left[0],top_right[0],num=num_nodes_x),np.linspace(bottom_left[1],top_right[1],num=num_nodes_y))
+            nodes_x, nodes_y = np.meshgrid(np.linspace(bottom_left[0],top_right[0],num=num_nodes_x),np.linspace(bottom_left[1],top_right[1],num=num_nodes_y))
         nodes = np.stack([nodes_x,nodes_y],axis=2)
 
         self.nodes = self.__perturb(nodes,P)
